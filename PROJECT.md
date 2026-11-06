@@ -12,13 +12,30 @@ This file is the single source of truth for scope and milestones. Hand **one mil
 | Item | Value |
 |---|---|
 | Package | `com.invictus.abhyas` |
-| minSdk / target / compile | 26 / 35 / 35 |
-| Stack | Kotlin 2.0.21, Compose (BOM 2024.12.01), Material 3, Navigation Compose, Room 2.6.1 (KSP), DataStore, WorkManager, kotlinx-serialization |
+| minSdk / target / compile | 26 / 36 / 37 |
+| Stack | Kotlin 2.3.0, AGP 9.1.0, Gradle 9.3.1, compileSdk 37, Compose (BOM 2025.09.01), Material 3 1.5.0-rc01 (Expressive APIs are public only from 1.5), Navigation Compose, Room 2.6.1 (KSP), DataStore, WorkManager, kotlinx-serialization |
 | Navigation | Bottom bar: Home, Library, Create, Progress, Settings |
 | Signing secrets (names only) | `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` |
-| CI | `.github/workflows/android.yml` — test, lint, debug APK, signed release APK (unsigned if secrets missing, clearly named) |
+| CI | `.github/workflows/android.yml` — builds release APKs, signs with `apksigner`, uploads `Abhyas-arm64-v8a` and `Abhyas-armeabi-v7a` separately (unsigned if secrets missing, clearly named) |
 
-Signing is read from env vars only (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) in `app/build.gradle.kts`. Never commit keystores or passwords.
+Signing happens only in CI via `apksigner` using the repository secrets (no signing config in Gradle). Never commit keystores or passwords.
+
+## Material 3 Expressive — mandatory UI rules (every milestone)
+
+All UI must use **Material 3 Expressive** (material3 1.5.0-rc01+, `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`). Already in the scaffold: `MaterialExpressiveTheme`, expressive motion scheme, dynamic colour, `ShortNavigationBar`, shape-morphing buttons, `ToggleButton` groups, `MaterialShapes`, emphasized typography.
+
+Rules for new screens:
+1. Keep the simple screen header (title + subtitle); do not use large collapsing top app bars.
+2. Buttons use `ButtonDefaults.shapes()` / `ToggleButtonDefaults.shapes()`; choice groups use `ToggleButton` or `ButtonGroup`, not plain chips.
+3. Use emphasized typography styles for titles and key numbers.
+4. Use `MaterialShapes` + `toShape()` for hero/status elements (scores, counts, progress badges).
+5. Use `LoadingIndicator` / `ContainedLoadingIndicator` for waiting states (imports, downloads, OCR) instead of a plain spinner.
+6. Use `FloatingActionButtonMenu` for multi-action entry points (e.g. Create).
+7. Motion comes from `MaterialTheme.motionScheme` (spring-based), no hard-coded tweens.
+8. Practice/exam screens stay uncluttered: the question comes first; expressive styling must not reduce readability or contrast.
+9. If an Expressive API is missing or unstable, wrap it in one small composable so it can be swapped.
+
+---
 
 ## Global rules for every milestone
 
@@ -27,7 +44,8 @@ Signing is read from env vars only (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_A
 3. AI is always optional; the app must work fully offline.
 4. Business logic outside composables (ViewModel + repository + domain).
 5. Keep the build green after each step; add unit tests for every engine piece.
-6. Update README and the checklist in this file when done.
+6. Follow the **Material 3 Expressive** rules above for all UI.
+7. Update README and the checklist in this file when done.
 
 ---
 
@@ -56,7 +74,7 @@ Signing is read from env vars only (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_A
 - [ ] Unit tests: validation, randomizer, shuffle remap, scoring, negative marking, numeric tolerance, dedupe
 - [ ] Room migration test, attempt persistence, restart-during-test test
 - [ ] Empty bank and invalid package handled gracefully
-- [ ] CI green (tests + lint + APKs)
+- [ ] CI green (both ABI APKs built and signed)
 
 ---
 

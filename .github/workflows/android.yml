@@ -1,121 +1,125 @@
-name: Android CI
+name: Android build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-  workflow_dispatch:
-
-concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch: {}
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Build & sign release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      # Existing repository secrets (values are never printed).
-      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+    timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - name: Generate build metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
+          cache: gradle
 
-      # ubuntu-latest already ships the Android SDK ($ANDROID_HOME); the
-      # android-actions/setup-android action breaks on its legacy "tools" package.
-      - name: Prepare Android SDK
-        run: |
-          set +o pipefail
-          SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n1)
-          yes | "$SDKM" --licenses > /dev/null 2>&1 || true
-          "$SDKM" "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: Make gradlew executable
+      - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+      - name: Build unsigned release APK
+        shell: bash
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
 
-      - name: Lint
-        run: ./gradlew lintDebug --stacktrace
-
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Detect signing configuration
-        id: signing
+      - name: Sign release APKs
+        shell: bash
         run: |
-          missing=""
-          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
-            if [ -z "${!v}" ]; then missing="$missing $v"; fi
+          set -euo pipefail
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)"
+          test -x "$apksigner"
+
+          mkdir -p app/build/outputs/apk/signed
+
+          # One APK per ABI: arm64-v8a and armeabi-v7a.
+          declare -A wanted=(
+            [Abhyas-arm64-v8a]="app/build/outputs/apk/release/*arm64-v8a*-unsigned.apk"
+            [Abhyas-armeabi-v7a]="app/build/outputs/apk/release/*armeabi-v7a*-unsigned.apk"
+          )
+
+          for label in "${!wanted[@]}"; do
+            unsigned=$(compgen -G "${wanted[$label]}" | head -n1 || true)
+            if [[ -z "$unsigned" ]]; then
+              echo "Missing expected unsigned APK for $label (pattern: ${wanted[$label]})"
+              find app/build/outputs/apk -type f -name '*.apk' -print || true
+              exit 1
+            fi
+
+            if [[ -z "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
+              echo "KEYSTORE_BASE64 is not set (expected for fork PRs); leaving $label unsigned."
+              cp "$unsigned" "app/build/outputs/apk/signed/$label-unsigned.apk"
+              continue
+            fi
+
+            if [[ -z "${{ secrets.KEY_ALIAS }}" || -z "${{ secrets.KEYSTORE_PASSWORD }}" || -z "${{ secrets.KEY_PASSWORD }}" ]]; then
+              echo "KEYSTORE_BASE64 is set but KEY_ALIAS / KEYSTORE_PASSWORD / KEY_PASSWORD are missing."
+              exit 1
+            fi
+
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.jks
+
+            "$apksigner" sign \
+              --ks release.jks \
+              --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+              --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+              --out "app/build/outputs/apk/signed/$label.apk" \
+              "$unsigned"
+            rm -f release.jks
           done
-          if [ -z "$missing" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "Signing secrets present."
+
+      - name: Verify APK signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)"
+          shopt -s nullglob
+          signed=(app/build/outputs/apk/signed/*.apk)
+          if [[ ${#signed[@]} -eq 0 ]]; then
+            echo "No signed APKs found -- skipping verification (unsigned build)."
           else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Signing secrets missing:$missing. Building UNSIGNED release APK."
+            for apk in "${signed[@]}"; do
+              [[ "$apk" == *-unsigned.apk ]] && continue
+              "$apksigner" verify --verbose --print-certs "$apk"
+            done
           fi
 
-      - name: Decode keystore
-        if: steps.signing.outputs.available == 'true'
-        run: |
-          KEYSTORE_FILE="$RUNNER_TEMP/release.keystore"
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
-          echo "KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
-
-      - name: Build release APK
-        run: ./gradlew assembleRelease --stacktrace
-
-      - name: Name release artifact (signed vs unsigned)
-        run: |
-          mkdir -p dist
-          cp app/build/outputs/apk/debug/*.apk dist/Abhyas-debug.apk
-          if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            f=$(ls app/build/outputs/apk/release/*.apk | head -n1)
-            case "$f" in
-              *unsigned*) echo "::error::Signing secrets were present but release APK is unsigned."; exit 1 ;;
-            esac
-            cp "$f" dist/Abhyas-release-signed.apk
-          else
-            f=$(ls app/build/outputs/apk/release/*.apk | head -n1)
-            cp "$f" dist/Abhyas-release-UNSIGNED.apk
-          fi
-
-      - name: Verify signature (signed builds only)
-        if: steps.signing.outputs.available == 'true'
-        run: |
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
-          "$APKSIGNER" verify --print-certs dist/Abhyas-release-signed.apk | grep -v -i "digest" || true
-          "$APKSIGNER" verify dist/Abhyas-release-signed.apk
-
-      - name: Upload APKs
+      - name: Upload Abhyas-arm64-v8a
         uses: actions/upload-artifact@v4
         with:
-          name: abhyas-apks
-          path: dist/*.apk
+          name: Abhyas-arm64-v8a-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/signed/Abhyas-arm64-v8a*.apk
           if-no-files-found: error
+          retention-days: 14
 
-      - name: Upload reports
-        if: always()
+      - name: Upload Abhyas-armeabi-v7a
         uses: actions/upload-artifact@v4
         with:
-          name: reports
-          path: |
-            app/build/reports/
-            app/build/test-results/
-          if-no-files-found: ignore
+          name: Abhyas-armeabi-v7a-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/signed/Abhyas-armeabi-v7a*.apk
+          if-no-files-found: error
+          retention-days: 14

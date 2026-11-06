@@ -1,45 +1,21 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
 
-// Signing values come ONLY from environment variables (set by CI from GitHub secrets
-// or locally by you). Nothing secret is ever stored in the repository.
-val keystorePath: String? = System.getenv("KEYSTORE_PATH")
-val keystorePassword: String? = System.getenv("KEYSTORE_PASSWORD")
-val keyAliasEnv: String? = System.getenv("KEY_ALIAS")
-val keyPasswordEnv: String? = System.getenv("KEY_PASSWORD")
-val hasSigning = !keystorePath.isNullOrBlank() &&
-    !keystorePassword.isNullOrBlank() &&
-    !keyAliasEnv.isNullOrBlank() &&
-    !keyPasswordEnv.isNullOrBlank() &&
-    file(keystorePath).exists()
-
 android {
     namespace = "com.invictus.abhyas"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.invictus.abhyas"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    signingConfigs {
-        if (hasSigning) {
-            create("release") {
-                storeFile = file(keystorePath!!)
-                storePassword = keystorePassword
-                keyAlias = keyAliasEnv
-                keyPassword = keyPasswordEnv
-            }
-        }
     }
 
     buildTypes {
@@ -48,24 +24,28 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            if (hasSigning) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+        }
+    }
+
+    // One APK per ABI (no universal APK). CI signs them with apksigner.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
     buildFeatures {
         compose = true

@@ -2,9 +2,10 @@ package com.invictus.abhyas.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Settings
 import com.invictus.abhyas.data.local.AbhyasDatabase
+import com.invictus.abhyas.data.prefs.SettingsStore
 import com.invictus.abhyas.ui.screens.CreateScreen
 import com.invictus.abhyas.ui.screens.HomeScreen
 import com.invictus.abhyas.ui.screens.LibraryScreen
@@ -36,17 +38,18 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
     Settings("settings", "Settings", Icons.Outlined.Settings),
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun AbhyasRoot(database: AbhyasDatabase) {
+fun AbhyasRoot(database: AbhyasDatabase, settingsStore: SettingsStore) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            ShortNavigationBar {
                 Tab.entries.forEach { tab ->
-                    NavigationBarItem(
+                    ShortNavigationBarItem(
                         selected = currentRoute == tab.route,
                         onClick = {
                             navController.navigate(tab.route) {
@@ -68,10 +71,10 @@ fun AbhyasRoot(database: AbhyasDatabase) {
             modifier = Modifier.padding(padding),
         ) {
             composable(Tab.Home.route) { HomeScreen(database) }
-            composable(Tab.Library.route) { LibraryScreen() }
+            composable(Tab.Library.route) { LibraryScreen(database) }
             composable(Tab.Create.route) { CreateScreen() }
             composable(Tab.Progress.route) { ProgressScreen() }
-            composable(Tab.Settings.route) { SettingsScreen() }
+            composable(Tab.Settings.route) { SettingsScreen(settingsStore) }
         }
     }
 }
