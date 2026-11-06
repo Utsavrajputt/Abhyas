@@ -19,4 +19,16 @@ interface QuestionDao {
 
     @Query("SELECT * FROM questions WHERE id = :id")
     suspend fun getById(id: String): QuestionEntity?
+
+    @Query("DELETE FROM questions WHERE bankId = :bankId")
+    suspend fun deleteByBank(bankId: String)
+
+    @Query("SELECT COUNT(*) FROM questions WHERE bankId = :bankId")
+    suspend fun countByBank(bankId: String): Int
+
+    @Query("DELETE FROM bookmarks WHERE questionId IN (SELECT id FROM questions WHERE bankId = :bankId)")
+    suspend fun deleteBookmarksOfBank(bankId: String)
+
+    @Query("DELETE FROM mistakes WHERE questionId IN (SELECT id FROM questions WHERE bankId = :bankId)")
+    suspend fun deleteMistakesOfBank(bankId: String)
 }

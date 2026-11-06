@@ -70,9 +70,15 @@ Rules for new screens:
 - Store the question snapshot per attempt so later edits never change past results.
 - Use `Flow` + `PagingSource`-style paging for large banks (tens of thousands).
 
+### Build order (4 steps, each must be green in CI)
+- [x] **Step 1** - domain models + validation, Room v2 (banks/attempts/attempt_questions/bookmarks/mistakes) + migration, package parser + importer, scoring, shuffle, content hash
+- [ ] **Step 2** - Library/import UI (SAF), filters + search with Paging 3, randomizer, KaTeX math composable, debug-only `demo_` bank
+- [ ] **Step 3** - practice modes + exam mode (JSON templates, palette, timer, auto-submit, resume)
+- [ ] **Step 4** - results, analytics, mistake notebook, bookmarks, history
+
 ### Acceptance checklist
-- [ ] Unit tests: validation, randomizer, shuffle remap, scoring, negative marking, numeric tolerance, dedupe
-- [ ] Room migration test, attempt persistence, restart-during-test test
+- [ ] Unit tests: validation, randomizer, shuffle remap, scoring, negative marking, numeric tolerance, dedupe (done: validation, shuffle remap, scoring, negative marking, tolerance, dedupe; randomizer pending step 2)
+- [ ] Room migration test (written, androidTest), attempt persistence, restart-during-test test
 - [ ] Empty bank and invalid package handled gracefully
 - [ ] CI green (both ABI APKs built and signed)
 
