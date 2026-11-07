@@ -61,7 +61,7 @@ import com.invictus.abhyas.ui.screens.SectionTitle
 private val REVIEW_FILTERS = listOf("All", "Wrong", "Skipped", "Correct")
 
 @Composable
-fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit) {
+fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit, onOpenNcert: (String, Int, Int) -> Unit = { _, _, _ -> }) {
     val vm: com.invictus.abhyas.ui.progress.ResultViewModel =
         viewModel(key = "result$attemptId", factory = resultViewModelFactory(app, attemptId))
     val ui by vm.ui.collectAsState()
@@ -142,7 +142,7 @@ fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit) {
         }
         if (shown.isEmpty()) item { BodyMuted("No questions in this filter.") }
         items(shown, key = { "r-${it.position}" }) { r ->
-            ReviewCard(r, r.question.id in bookmarked) { vm.toggleBookmark(r.question.id) }
+            ReviewCard(app, r, r.question.id in bookmarked, { vm.toggleBookmark(r.question.id) }, onOpenNcert)
         }
         item {
             Button(onClick = onDone, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Done") }
@@ -159,7 +159,7 @@ private fun Tile(value: String, label: String) {
 }
 
 @Composable
-private fun ReviewCard(r: ReviewItem, bookmarked: Boolean, onBookmark: () -> Unit) {
+private fun ReviewCard(app: AbhyasApp, r: ReviewItem, bookmarked: Boolean, onBookmark: () -> Unit, onOpenNcert: (String, Int, Int) -> Unit) {
     val q = r.question
     val verdictText = when (r.verdict) {
         Verdict.CORRECT -> "Correct"
@@ -197,6 +197,7 @@ private fun ReviewCard(r: ReviewItem, bookmarked: Boolean, onBookmark: () -> Uni
                 Text("Explanation", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 MathText(it)
             }
+            com.invictus.abhyas.ui.ncert.NcertRefCard(app, q.ncertRef, onOpenNcert)
         }
     }
 }

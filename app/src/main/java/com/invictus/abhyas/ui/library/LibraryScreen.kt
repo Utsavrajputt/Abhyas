@@ -51,7 +51,7 @@ import com.invictus.abhyas.ui.screens.SectionTitle
 private val ZIP_TYPES = arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
 
 @Composable
-fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit) {
+fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit = {}) {
     val vm: LibraryViewModel = viewModel(factory = appViewModelFactory(app))
     val banks by vm.banks.collectAsState()
     val importState by vm.importState.collectAsState()
@@ -84,6 +84,12 @@ fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit) {
                 Text("  Import folder")
             }
         }
+
+        OutlinedButton(
+            onClick = onOpenNcert,
+            shapes = ButtonDefaults.shapes(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("NCERT Connect: read books, link questions") }
 
         vm.demoPackages.forEach { dir ->
             OutlinedButton(

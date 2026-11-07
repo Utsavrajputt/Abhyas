@@ -23,6 +23,8 @@ data class Question(
     val negativeMarks: Double = 1.0,
     val language: String = "en",
     val answerVerified: Boolean = false,
+    /** Where this is explained in an NCERT book (verified against the installed book before display). */
+    val ncertRef: com.invictus.abhyas.domain.ncert.NcertRef? = null,
 )
 
 /** What the student entered/selected. */

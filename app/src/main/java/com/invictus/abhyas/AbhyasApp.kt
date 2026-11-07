@@ -18,5 +18,8 @@ class AbhyasApp : Application() {
     val templateRepository: TemplateRepository by lazy { TemplateRepository(this) }
     val packageReader: PackageReader by lazy { PackageReader(this) }
     val pdfStudio: PdfStudioRepository by lazy { PdfStudioRepository(this, database, bankImporter) }
+    val books: com.invictus.abhyas.data.ncert.BookRepository by lazy {
+        com.invictus.abhyas.data.ncert.BookRepository(this, database, com.invictus.abhyas.data.pdf.PdfTextExtractor(this))
+    }
     val settingsStore: SettingsStore by lazy { SettingsStore(this) }
 }

@@ -17,6 +17,8 @@ data class UserSettings(
     val dynamicColor: Boolean = true,
     /** AI is optional and OFF by default; the app never needs it. */
     val aiEnabled: Boolean = false,
+    /** HTTPS URL of a hosted NCERT book index (optional; empty = not set). */
+    val ncertIndexUrl: String = "",
 )
 
 class SettingsStore(private val context: Context) {
@@ -24,6 +26,7 @@ class SettingsStore(private val context: Context) {
         val theme = stringPreferencesKey("theme_mode")
         val dynamic = booleanPreferencesKey("dynamic_color")
         val ai = booleanPreferencesKey("ai_enabled")
+        val ncertIndex = stringPreferencesKey("ncert_index_url")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { p ->
@@ -32,6 +35,7 @@ class SettingsStore(private val context: Context) {
                 ?: ThemeMode.SYSTEM,
             dynamicColor = p[Keys.dynamic] ?: true,
             aiEnabled = p[Keys.ai] ?: false,
+            ncertIndexUrl = p[Keys.ncertIndex] ?: "",
         )
     }
 
@@ -45,5 +49,9 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setAiEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.ai] = enabled }
+    }
+
+    suspend fun setNcertIndexUrl(url: String) {
+        context.settingsDataStore.edit { it[Keys.ncertIndex] = url.trim() }
     }
 }

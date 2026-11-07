@@ -28,6 +28,12 @@ object QuestionValidator {
         if (!q.negativeMarks.isFinite() || q.negativeMarks < 0) e += "negativeMarks must be >= 0"
         if (q.answerVerified && !q.payload.hasAnswer()) e += "answerVerified=true but the answer is missing"
         if (q.type == QuestionType.IMAGE && q.imagePath.isNullOrBlank()) e += "IMAGE question needs imagePath"
+        q.ncertRef?.let { r ->
+            if (r.bookId.isBlank()) e += "ncertRef.bookId is blank"
+            if (r.page < 1) e += "ncertRef.page must be >= 1"
+            if (r.paragraph < 0) e += "ncertRef.paragraph must be >= 0"
+            if (!com.invictus.abhyas.domain.ncert.PassageHash.VALID.matches(r.textHash)) e += "ncertRef.textHash must be 16 hex chars"
+        }
         e += validatePayload(q.type, q.payload)
         return e
     }

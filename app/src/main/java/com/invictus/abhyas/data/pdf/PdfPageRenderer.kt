@@ -15,6 +15,10 @@ class PdfPageRenderer(file: File) : Closeable {
 
     val pageCount: Int get() = renderer.pageCount
 
+    /** Page size in PDF points (width, height). [page] is 1-based. */
+    @Synchronized
+    fun size(page: Int): Pair<Int, Int> = renderer.openPage(page - 1).use { it.width to it.height }
+
     class Rendered(val bitmap: Bitmap, val pxPerPoint: Float)
 
     /** [page] is 1-based. Width is capped so very large pages cannot exhaust memory. */

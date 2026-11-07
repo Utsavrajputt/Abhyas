@@ -25,6 +25,8 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Settings
 import com.invictus.abhyas.AbhyasApp
+import com.invictus.abhyas.ui.ncert.NcertScreen
+import com.invictus.abhyas.ui.ncert.ReaderScreen
 import com.invictus.abhyas.ui.pdf.PdfReportScreen
 import com.invictus.abhyas.ui.pdf.PdfReviewScreen
 import com.invictus.abhyas.ui.pdf.PdfStudioScreen
@@ -57,11 +59,11 @@ fun AbhyasRoot(app: AbhyasApp) {
 
     Scaffold(
         bottomBar = {
-            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup" || currentRoute == "pdfstudio"
+            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup" || currentRoute == "pdfstudio" || currentRoute == "ncert"
             if (showBar) ShortNavigationBar {
                 Tab.entries.forEach { tab ->
                     ShortNavigationBarItem(
-                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse") || (tab == Tab.Create && currentRoute == "pdfstudio"),
+                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse") || (tab == Tab.Create && currentRoute == "pdfstudio") || (tab == Tab.Library && currentRoute == "ncert"),
                         onClick = {
                             navController.navigate(tab.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -88,7 +90,26 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onImportBank = { navController.navigate(Tab.Library.route) },
                 )
             }
-            composable(Tab.Library.route) { LibraryScreen(app, onBrowse = { navController.navigate("browse") }) }
+            composable(Tab.Library.route) {
+                LibraryScreen(app, onBrowse = { navController.navigate("browse") }, onOpenNcert = { navController.navigate("ncert") })
+            }
+            composable("ncert") { NcertScreen(app, onOpenBook = { navController.navigate("reader/$it") }) }
+            composable(
+                "reader/{bookId}?page={page}&para={para}",
+                arguments = listOf(
+                    navArgument("bookId") { type = NavType.StringType },
+                    navArgument("page") { type = NavType.IntType; defaultValue = 0 },
+                    navArgument("para") { type = NavType.IntType; defaultValue = -1 },
+                ),
+            ) { entry ->
+                ReaderScreen(
+                    app,
+                    entry.arguments?.getString("bookId").orEmpty(),
+                    entry.arguments?.getInt("page") ?: 0,
+                    entry.arguments?.getInt("para") ?: -1,
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable("browse") { BrowseScreen(app) }
             composable(Tab.Create.route) {
                 CreateScreen(
@@ -118,7 +139,7 @@ fun AbhyasRoot(app: AbhyasApp) {
             }
             composable("result/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 val id = entry.arguments?.getLong("id") ?: 0L
-                ResultScreen(app, id, onDone = { navController.popBackStack() })
+                ResultScreen(app, id, onDone = { navController.popBackStack() }, onOpenNcert = { b, p, q -> navController.navigate("reader/$b?page=$p&para=$q") })
             }
             composable(Tab.Progress.route) {
                 ProgressScreen(

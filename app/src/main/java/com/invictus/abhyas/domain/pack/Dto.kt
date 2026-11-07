@@ -42,6 +42,7 @@ data class QuestionDto(
     val sourcePage: Int? = null,
     val tags: List<String> = emptyList(),
     val imagePath: String? = null,
+    val ncertRef: com.invictus.abhyas.domain.ncert.NcertRef? = null,
     val marks: Double? = null,
     val negativeMarks: Double? = null,
     val language: String = "en",

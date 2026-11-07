@@ -18,8 +18,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PdfJobEntity::class,
         PdfPageEntity::class,
         PdfDraftEntity::class,
+        BookEntity::class,
+        BookChapterEntity::class,
+        PassageEntity::class,
+        BookBookmarkEntity::class,
+        SavedPassageEntity::class,
+        ReadPageEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class AbhyasDatabase : RoomDatabase() {
@@ -29,6 +35,7 @@ abstract class AbhyasDatabase : RoomDatabase() {
     abstract fun bookmarkDao(): BookmarkDao
     abstract fun mistakeDao(): MistakeDao
     abstract fun pdfDao(): PdfDao
+    abstract fun bookDao(): BookDao
 
     companion object {
         /** v1 -> v2: question-bank, attempt, bookmark and mistake tables. `questions` is unchanged. */
@@ -109,9 +116,49 @@ abstract class AbhyasDatabase : RoomDatabase() {
             }
         }
 
+        /** v3 -> v4: NCERT Connect (books, chapters, passages, bookmarks, saved passages, read pages). */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val fk = "FOREIGN KEY(`bookId`) REFERENCES `books`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE"
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `books` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `classLevel` INTEGER, " +
+                        "`subject` TEXT NOT NULL, `localPath` TEXT NOT NULL, `pageCount` INTEGER NOT NULL, " +
+                        "`checksum` TEXT NOT NULL, `origin` TEXT NOT NULL, `sourceUrl` TEXT, `status` TEXT NOT NULL, " +
+                        "`indexedPages` INTEGER NOT NULL, `message` TEXT, `lastPage` INTEGER NOT NULL, " +
+                        "`addedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_chapters` (`bookId` TEXT NOT NULL, `idx` INTEGER NOT NULL, " +
+                        "`title` TEXT NOT NULL, `startPage` INTEGER NOT NULL, `endPage` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`bookId`, `idx`), $fk)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `passages` (`bookId` TEXT NOT NULL, `page` INTEGER NOT NULL, " +
+                        "`idx` INTEGER NOT NULL, `text` TEXT NOT NULL, `textHash` TEXT NOT NULL, `top` REAL NOT NULL, " +
+                        "`bottom` REAL NOT NULL, `pageHeight` REAL NOT NULL, PRIMARY KEY(`bookId`, `page`, `idx`), $fk)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_passages_bookId_textHash` ON `passages` (`bookId`, `textHash`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_bookmarks` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`bookId` TEXT NOT NULL, `page` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, $fk)",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_book_bookmarks_bookId_page` ON `book_bookmarks` (`bookId`, `page`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `saved_passages` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`bookId` TEXT NOT NULL, `page` INTEGER NOT NULL, `paragraph` INTEGER NOT NULL, " +
+                        "`textHash` TEXT NOT NULL, `text` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, $fk)",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_saved_passages_bookId_textHash` ON `saved_passages` (`bookId`, `textHash`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `read_pages` (`bookId` TEXT NOT NULL, `page` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`bookId`, `page`), $fk)",
+                )
+            }
+        }
+
         fun build(context: Context): AbhyasDatabase =
             Room.databaseBuilder(context, AbhyasDatabase::class.java, "abhyas.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

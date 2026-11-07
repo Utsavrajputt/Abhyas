@@ -31,6 +31,7 @@ fun Question.toEntity(contentHash: String = ContentHash.of(this)): QuestionEntit
     language = language,
     answerVerified = answerVerified,
     contentHash = contentHash,
+    ncertRefJson = ncertRef?.let { com.invictus.abhyas.domain.pack.AbhyasJson.json.encodeToString(com.invictus.abhyas.domain.ncert.NcertRef.serializer(), it) },
 )
 
 /** Throws IllegalStateException on corrupt rows (should never happen: rows are written by [toEntity]). */
@@ -58,5 +59,8 @@ fun QuestionEntity.toQuestion(): Question {
         negativeMarks = negativeMarks,
         language = language,
         answerVerified = answerVerified,
+        ncertRef = ncertRefJson?.let {
+            runCatching { com.invictus.abhyas.domain.pack.AbhyasJson.json.decodeFromString(com.invictus.abhyas.domain.ncert.NcertRef.serializer(), it) }.getOrNull()
+        },
     )
 }

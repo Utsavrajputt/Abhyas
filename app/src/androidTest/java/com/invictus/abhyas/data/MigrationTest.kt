@@ -63,6 +63,18 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate3To4_addsBookTables() {
+        helper.createDatabase(DB, 3).close()
+        val db = helper.runMigrationsAndValidate(DB, 4, true, AbhyasDatabase.MIGRATION_3_4)
+        listOf("books", "book_chapters", "passages", "book_bookmarks", "saved_passages", "read_pages").forEach { table ->
+            db.query("SELECT COUNT(*) FROM $table").use {
+                it.moveToFirst()
+                assertEquals(0, it.getInt(0))
+            }
+        }
+    }
+
     private companion object {
         const val DB = "migration-test"
     }

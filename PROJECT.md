@@ -105,6 +105,14 @@ Rules for new screens:
 - Keep a `confidence` score per parsed question and sort the review list by lowest confidence first.
 - Add a desktop-side script (`tools/pack_bank.py`) to checksum + zip packages for GitHub Releases / hosting.
 
+### Build status (M3 Part 1: NCERT reader)
+- [x] Books from the phone (SAF, checksum de-dupe) or a hosted HTTPS index (resumable download, SHA-256 verified, nothing saved on mismatch)
+- [x] Background text index (paragraphs with stable hashes + vertical bands), chapters from the PDF outline or "Chapter N" headings
+- [x] Reader: continuous pages, in-book search, bookmarks, tap a paragraph to save/highlight, per-chapter read progress, resume at last page
+- [x] Question -> NCERT reference (`ncertRef`: bookId, page, paragraph, textHash) in packages, DB and validator; shown on result review only when the passage is found again by hash, with "Open in book" deep link
+- [x] Room v4 + migration 3->4 + migration test; fix: M2 figure-crop line positions are now per line (were per word)
+- [ ] Part 2: AI (Gemini BYOK) + practice from NCERT (rule-based and AI-assisted), Part 3: polish
+
 ### Build status (M2)
 - [x] PDF pick via SAF, stored copy, source file name + page on every question
 - [x] Digital extraction (PdfBox-Android) in a WorkManager job: per-page progress, cancel, resume from the last page
