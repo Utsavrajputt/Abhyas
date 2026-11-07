@@ -55,7 +55,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.local.AbhyasDatabase
+import com.invictus.abhyas.data.repo.StartResult
+import com.invictus.abhyas.domain.attempt.PracticeConfig
+import com.invictus.abhyas.domain.attempt.PracticeMode
+import com.invictus.abhyas.domain.model.Exam
+import com.invictus.abhyas.domain.query.QuestionFilter
 import com.invictus.abhyas.data.prefs.SettingsStore
 import com.invictus.abhyas.data.prefs.ThemeMode
 import com.invictus.abhyas.data.prefs.UserSettings
@@ -67,7 +73,7 @@ import kotlinx.coroutines.launch
 
 /** Screen frame: simple title + subtitle header, scrollable content (+ optional FAB). */
 @Composable
-private fun ExpressiveScreen(
+internal fun ExpressiveScreen(
     title: String,
     subtitle: String,
     floatingActionButton: @Composable () -> Unit = {},
@@ -101,11 +107,11 @@ private fun ExpressiveScreen(
 }
 
 @Composable
-private fun SectionTitle(text: String) =
+internal fun SectionTitle(text: String) =
     Text(text, style = MaterialTheme.typography.titleMediumEmphasized)
 
 @Composable
-private fun BodyMuted(text: String) = Text(
+internal fun BodyMuted(text: String) = Text(
     text,
     style = MaterialTheme.typography.bodyLarge,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -113,7 +119,7 @@ private fun BodyMuted(text: String) = Text(
 
 /** Connected expressive toggle-button group (single selection). */
 @Composable
-private fun ConnectedToggleGroup(items: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+internal fun ConnectedToggleGroup(items: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
@@ -136,7 +142,7 @@ private fun ConnectedToggleGroup(items: List<String>, selected: Int, onSelect: (
 
 /** A stat tile drawn inside a MaterialShapes container. */
 @Composable
-private fun ShapeStat(
+internal fun ShapeStat(
     value: String,
     label: String,
     shape: androidx.compose.ui.graphics.Shape,
@@ -165,7 +171,11 @@ private fun ShapeStat(
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun HomeScreen(database: AbhyasDatabase) {
+fun HomeScreen(app: AbhyasApp, onOpenSession: (Long) -> Unit, onImportBank: () -> Unit) {
+    val database = app.database
+    val scope = rememberCoroutineScope()
+    val inProgress by app.attemptRepository.observeInProgress().collectAsState(initial = null)
+    var quickMessage by remember { mutableStateOf<String?>(null) }
     val total: Int? by database.questionDao().observeCount().collectAsState<Int, Int?>(initial = null)
     var exam by remember { mutableStateOf(0) }
     val exams = listOf("NEET", "JEE Main")
@@ -206,7 +216,17 @@ fun HomeScreen(database: AbhyasDatabase) {
         ConnectedToggleGroup(exams, exam) { exam = it }
 
         Button(
-            onClick = { /* Quick Practice arrives in Milestone 1 */ },
+            onClick = {
+                scope.launch {
+                    val examFilter = if (exam == 0) Exam.NEET else Exam.JEE_MAIN
+                    when (val r = app.attemptRepository.startPractice(
+                        PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = examFilter), 20),
+                    )) {
+                        is StartResult.Started -> onOpenSession(r.attemptId)
+                        is StartResult.Failed -> quickMessage = r.message
+                    }
+                }
+            },
             enabled = hasQuestions,
             shapes = ButtonDefaults.shapes(),
             modifier = Modifier.fillMaxWidth(),
@@ -216,9 +236,18 @@ fun HomeScreen(database: AbhyasDatabase) {
             Text("Quick practice - ${exams[exam]}", style = MaterialTheme.typography.titleMediumEmphasized)
         }
 
+        quickMessage?.let { BodyMuted(it) }
+        inProgress?.let { a ->
+            FilledTonalButton(
+                onClick = { onOpenSession(a.id) },
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Resume: ${a.title}") }
+        }
+
         if (total == 0) {
             FilledTonalButton(
-                onClick = { /* Bank import arrives in Milestone 1 */ },
+                onClick = onImportBank,
                 shapes = ButtonDefaults.shapes(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Import a question bank") }
@@ -228,46 +257,11 @@ fun HomeScreen(database: AbhyasDatabase) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Library
-// ---------------------------------------------------------------------------------------------
-
-@Composable
-fun LibraryScreen(database: AbhyasDatabase) {
-    val total: Int? by database.questionDao().observeCount().collectAsState<Int, Int?>(initial = null)
-    var filter by remember { mutableStateOf(0) }
-
-    ExpressiveScreen("Library", "NEET, JEE Main, NCERT") {
-        ConnectedToggleGroup(listOf("All", "NEET", "JEE Main", "NCERT"), filter) { filter = it }
-
-        when (total) {
-            null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                LoadingIndicator(modifier = Modifier.size(72.dp))
-            }
-            0 -> Column(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(MaterialShapes.Clover4Leaf.toShape())
-                        .background(MaterialTheme.colorScheme.tertiaryContainer),
-                )
-                Text("Nothing here yet", style = MaterialTheme.typography.titleLargeEmphasized)
-                BodyMuted("Installed question banks and NCERT textbooks will appear here.")
-            }
-            else -> BodyMuted("$total questions available offline.")
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun CreateScreen() {
+fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExpressiveScreen(
         title = "Create",
@@ -288,7 +282,7 @@ fun CreateScreen() {
                 },
             ) {
                 FloatingActionButtonMenuItem(
-                    onClick = { expanded = false },
+                    onClick = { expanded = false; onCustomPractice() },
                     icon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
                     text = { Text("Custom practice") },
                 )
@@ -298,7 +292,7 @@ fun CreateScreen() {
                     text = { Text("Import PDF") },
                 )
                 FloatingActionButtonMenuItem(
-                    onClick = { expanded = false },
+                    onClick = { expanded = false; onImportBank() },
                     icon = { Icon(Icons.Outlined.FileUpload, contentDescription = null) },
                     text = { Text("Import question bank") },
                 )
@@ -307,28 +301,7 @@ fun CreateScreen() {
     ) {
         SectionTitle("What you can create")
         BodyMuted("Custom practice sessions, PDF imports and question-bank imports. Use the + button to start.")
-        BodyMuted("These actions are wired up in Milestones 1 and 2.")
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Progress
-// ---------------------------------------------------------------------------------------------
-
-@Composable
-fun ProgressScreen() {
-    val cs = MaterialTheme.colorScheme
-    ExpressiveScreen("Progress", "Results and analytics") {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            ShapeStat("-", "Accuracy", MaterialShapes.Sunny.toShape(), cs.primaryContainer, cs.onPrimaryContainer)
-            ShapeStat("-", "Attempted", MaterialShapes.Flower.toShape(), cs.secondaryContainer, cs.onSecondaryContainer)
-            ShapeStat("-", "Streak", MaterialShapes.Cookie6Sided.toShape(), cs.tertiaryContainer, cs.onTertiaryContainer)
-        }
-        SectionTitle("No attempts yet")
-        BodyMuted("Your scores, weak topics and the mistake notebook will appear here after your first test.")
+        BodyMuted("Custom practice and bank import work now; PDF import arrives in Milestone 2.")
     }
 }
 

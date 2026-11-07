@@ -33,5 +33,14 @@ Repository secrets used (names only): `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `K
 ## Question-bank package format
 `manifest.json` + `questions.json` (JSON array). `sha256` in the manifest is the hex SHA-256 of the raw `questions.json` bytes; `questionCount` must match. Per-question `exam`/`subject`/`class` fall back to the manifest. Answer fields are optional: a question without an answer is imported with `answerVerified=false` and is never scored. Question ids are stored as `<bankId>:<id>`; identical content (type + statement + options) is deduped across banks.
 
+## Library, search and math
+Library tab imports a bank from a zip or a folder (Storage Access Framework) and lists installed banks with update/remove; "Browse" searches and filters (exam, class, subject, chapter, topic, type, difficulty, year, theory/numerical) with Paging 3. Debug builds also offer a clearly labelled `DEMO` bank (`app/src/debug/assets/demo`), never shipped in release. LaTeX renders through `MathText` using offline KaTeX; drop the KaTeX files into `app/src/main/assets/katex/` (see the README there), otherwise plain text is shown. Image files referenced by `imagePath` are not extracted from packages yet.
+
+## Practice and exams
+Home has Quick practice (20 random questions, recent ones avoided) and a Resume button; Create -> Custom practice offers modes (quick, chapter, topic, subject, random, PYQ, theory, numerical, incorrect-only, bookmarked, custom), filters, count and an optional timer; full tests come from JSON templates in `app/src/main/assets/templates/` (duration, sections, marking; edit freely). All modes show answers only after submit. Timed attempts use a wall-clock deadline stored in Room: reopening after it passed auto-submits. Every attempt freezes its questions (shuffled options included) so later bank edits never change past results. Only one attempt can be in progress at a time. 
+
+## Results and progress
+After submit the Result screen shows score, accuracy, average time, a breakdown you can group by subject / chapter / topic / difficulty / type / theory-vs-numerical, and a per-question review (your answer, correct answer, explanation, bookmark) filterable by wrong / skipped / correct. The Progress tab has Overview (accuracy, subject, theory vs numerical, difficulty, weak topics), History (open or delete past results), Mistakes (unresolved wrong answers, resolve or retry up to 30) and Saved (bookmarks, practise up to 30). Weak topic = at least 3 answered with accuracy under 60%.
+
 ## Known limitations
 Everything beyond the scaffold is pending; see PROJECT.md.

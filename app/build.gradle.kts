@@ -80,7 +80,10 @@ dependencies {
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.room.paging)
     ksp(libs.room.compiler)
+    implementation(libs.paging.compose)
+    implementation(libs.androidx.documentfile)
 
     implementation(libs.datastore.preferences)
     implementation(libs.work.runtime.ktx)
@@ -91,6 +94,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.test.ext.junit)
 }

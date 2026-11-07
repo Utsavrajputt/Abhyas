@@ -1,0 +1,13 @@
+{
+  "id": "neet_full",
+  "name": "NEET full test",
+  "exam": "NEET",
+  "durationMinutes": 180,
+  "marking": { "correct": 4, "wrong": 1 },
+  "sections": [
+    { "title": "Physics", "subject": "Physics", "count": 45 },
+    { "title": "Chemistry", "subject": "Chemistry", "count": 45 },
+    { "title": "Biology", "subject": "Biology", "count": 90 }
+  ],
+  "note": "Edit counts, duration and marking freely. Section subjects must match the subject names in your banks."
+}

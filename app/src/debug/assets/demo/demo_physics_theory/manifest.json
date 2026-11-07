@@ -1,0 +1,12 @@
+{
+ "id": "demo_physics_theory",
+ "version": 1,
+ "title": "DEMO bank (debug only)",
+ "exam": "NEET",
+ "class": 11,
+ "subject": "Physics",
+ "kind": "mixed",
+ "sha256": "0942a0f868c3ca46873d55710430d724a70d00958fde9b600753709b1476d480",
+ "questionCount": 10,
+ "formatVersion": 1
+}

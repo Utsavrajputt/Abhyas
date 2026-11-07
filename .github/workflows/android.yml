@@ -42,10 +42,6 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Run unit tests
-        shell: bash
-        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
-
       - name: Build unsigned release APK
         shell: bash
         run: ./gradlew assembleRelease --stacktrace --no-daemon

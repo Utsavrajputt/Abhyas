@@ -1,0 +1,247 @@
+[
+ {
+  "id": "d1",
+  "type": "SINGLE_MCQ",
+  "statement": "DEMO: placeholder single-choice question; option B is marked correct.",
+  "payload": {
+   "options": [
+    {
+     "id": "a",
+     "text": "Option A"
+    },
+    {
+     "id": "b",
+     "text": "Option B"
+    },
+    {
+     "id": "c",
+     "text": "Option C"
+    },
+    {
+     "id": "d",
+     "text": "Option D"
+    }
+   ],
+   "correctId": "b"
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic A",
+  "difficulty": "EASY",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d2",
+  "type": "MULTI_MCQ",
+  "statement": "DEMO: placeholder multi-select question; options A and C are marked correct.",
+  "payload": {
+   "options": [
+    {
+     "id": "a",
+     "text": "Option A"
+    },
+    {
+     "id": "b",
+     "text": "Option B"
+    },
+    {
+     "id": "c",
+     "text": "Option C"
+    },
+    {
+     "id": "d",
+     "text": "Option D"
+    }
+   ],
+   "correctIds": [
+    "a",
+    "c"
+   ]
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic B",
+  "difficulty": "MEDIUM",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d3",
+  "type": "NUMERICAL",
+  "statement": "DEMO: placeholder numerical question; the marked answer is 42 (tolerance 0.5).",
+  "payload": {
+   "answer": 42.0,
+   "tolerance": 0.5
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic A",
+  "difficulty": "HARD",
+  "source": "Abhyas demo data (not real exam content)",
+  "negativeMarks": 0.0
+ },
+ {
+  "id": "d4",
+  "type": "TRUE_FALSE",
+  "statement": "DEMO: placeholder true/false question; marked answer is True.",
+  "payload": {
+   "answer": true
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic B",
+  "difficulty": "EASY",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d5",
+  "type": "ASSERTION_REASON",
+  "statement": "DEMO: placeholder assertion-reason question.",
+  "payload": {
+   "assertion": "DEMO assertion text.",
+   "reason": "DEMO reason text.",
+   "correctOption": 2
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic A",
+  "difficulty": "MEDIUM",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d6",
+  "type": "MATCH",
+  "statement": "DEMO: placeholder match-the-following question.",
+  "payload": {
+   "left": [
+    {
+     "id": "a",
+     "text": "Item P"
+    },
+    {
+     "id": "b",
+     "text": "Item Q"
+    }
+   ],
+   "right": [
+    {
+     "id": "a",
+     "text": "Item 1"
+    },
+    {
+     "id": "b",
+     "text": "Item 2"
+    }
+   ],
+   "options": [
+    {
+     "id": "a",
+     "text": "P-1, Q-2"
+    },
+    {
+     "id": "b",
+     "text": "P-2, Q-1"
+    },
+    {
+     "id": "c",
+     "text": "P-1, Q-1"
+    },
+    {
+     "id": "d",
+     "text": "P-2, Q-2"
+    }
+   ],
+   "correctId": "a"
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic B",
+  "difficulty": "HARD",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d7",
+  "type": "FILL_BLANK",
+  "statement": "DEMO: placeholder fill-in-the-blank: the blank is ____ (answer: demo).",
+  "payload": {
+   "acceptedAnswers": [
+    "demo"
+   ]
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic A",
+  "difficulty": "EASY",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d8",
+  "type": "SINGLE_MCQ",
+  "statement": "DEMO: placeholder math question with LaTeX: what is $x^2 + y^2$ when $x=1$, $y=2$?",
+  "payload": {
+   "options": [
+    {
+     "id": "a",
+     "text": "$3$"
+    },
+    {
+     "id": "b",
+     "text": "$5$"
+    },
+    {
+     "id": "c",
+     "text": "$7$"
+    },
+    {
+     "id": "d",
+     "text": "$9$"
+    }
+   ],
+   "correctId": "b"
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic B",
+  "difficulty": "MEDIUM",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d9",
+  "type": "SINGLE_MCQ",
+  "statement": "DEMO: placeholder question with NO answer key: it must show as unverified.",
+  "payload": {
+   "options": [
+    {
+     "id": "a",
+     "text": "Option A"
+    },
+    {
+     "id": "b",
+     "text": "Option B"
+    }
+   ]
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic A",
+  "difficulty": "HARD",
+  "source": "Abhyas demo data (not real exam content)"
+ },
+ {
+  "id": "d10",
+  "type": "SINGLE_MCQ",
+  "statement": "DEMO: placeholder previous-year-style question (year 2020).",
+  "payload": {
+   "options": [
+    {
+     "id": "a",
+     "text": "Option A"
+    },
+    {
+     "id": "b",
+     "text": "Option B"
+    },
+    {
+     "id": "c",
+     "text": "Option C"
+    }
+   ],
+   "correctId": "c"
+  },
+  "chapter": "Demo Chapter",
+  "topic": "Demo Topic B",
+  "difficulty": "EASY",
+  "source": "Abhyas demo data (not real exam content)",
+  "year": 2020
+ }
+]

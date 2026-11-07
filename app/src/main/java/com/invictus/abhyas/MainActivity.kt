@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
             AbhyasTheme(darkTheme = dark, dynamicColor = settings.dynamicColor) {
-                AbhyasRoot(database = app.database, settingsStore = app.settingsStore)
+                AbhyasRoot(app)
             }
         }
     }

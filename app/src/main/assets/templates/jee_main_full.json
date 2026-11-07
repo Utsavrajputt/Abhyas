@@ -1,0 +1,16 @@
+{
+  "id": "jee_main_full",
+  "name": "JEE Main full test",
+  "exam": "JEE_MAIN",
+  "durationMinutes": 180,
+  "marking": { "correct": 4, "wrong": 1 },
+  "sections": [
+    { "title": "Physics (MCQ)", "subject": "Physics", "kind": "THEORY", "count": 20 },
+    { "title": "Physics (Numerical)", "subject": "Physics", "kind": "NUMERICAL", "count": 5, "marking": { "correct": 4, "wrong": 0 } },
+    { "title": "Chemistry (MCQ)", "subject": "Chemistry", "kind": "THEORY", "count": 20 },
+    { "title": "Chemistry (Numerical)", "subject": "Chemistry", "kind": "NUMERICAL", "count": 5, "marking": { "correct": 4, "wrong": 0 } },
+    { "title": "Mathematics (MCQ)", "subject": "Mathematics", "kind": "THEORY", "count": 20 },
+    { "title": "Mathematics (Numerical)", "subject": "Mathematics", "kind": "NUMERICAL", "count": 5, "marking": { "correct": 4, "wrong": 0 } }
+  ],
+  "note": "Edit counts, duration and marking freely. Section subjects must match the subject names in your banks."
+}

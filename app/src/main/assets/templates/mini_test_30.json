@@ -1,0 +1,7 @@
+{
+  "id": "mini_test_30",
+  "name": "Mini test (30 questions, 45 min)",
+  "durationMinutes": 45,
+  "questionCount": 30,
+  "note": "Any exam, any subject. Uses each question's own marks."
+}
