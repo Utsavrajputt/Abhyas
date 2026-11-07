@@ -2,6 +2,7 @@ package com.invictus.abhyas.domain.pack
 
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.OutputStream
 import java.util.zip.ZipInputStream
 
 class PackageFiles(val manifest: ByteArray, val questions: ByteArray)
@@ -12,7 +13,11 @@ class PackageReadException(message: String) : Exception(message)
 object PackageZip {
     const val MAX_FILE_BYTES = 128L * 1024 * 1024
 
-    fun read(input: InputStream): PackageFiles {
+    /**
+     * [imageSink] receives every `images/<file>` entry (file name only, so paths cannot escape) and
+     * returns the stream to write it to, or null to skip it.
+     */
+    fun read(input: InputStream, imageSink: ((String) -> OutputStream?)? = null): PackageFiles {
         var manifest: ByteArray? = null
         var questions: ByteArray? = null
         ZipInputStream(input).use { zip ->
@@ -21,6 +26,15 @@ object PackageZip {
                 if (entry.isDirectory) continue
                 val name = entry.name.substringAfterLast('/').lowercase()
                 if (name.startsWith(".") || entry.name.startsWith("__MACOSX")) continue
+                val inImages = imageSink != null && entry.name.replace('\\', '/').split('/').dropLast(1).any { it.equals("images", true) }
+                if (inImages && name.isNotEmpty()) {
+                    val rawName = entry.name.substringAfterLast('/').substringAfterLast('\\')
+                    imageSink!!(rawName)?.use { out ->
+                        val bytes = readBounded(zip, rawName, 16L * 1024 * 1024)
+                        out.write(bytes)
+                    }
+                    continue
+                }
                 when (name) {
                     "manifest.json" -> if (manifest == null) manifest = readBounded(zip, name)
                     "questions.json" -> if (questions == null) questions = readBounded(zip, name)

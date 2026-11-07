@@ -89,6 +89,9 @@ dependencies {
     implementation(libs.work.runtime.ktx)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+    // PDF Studio (M2): digital text extraction + offline OCR for scanned pages.
+    implementation(libs.pdfbox.android)
+    implementation(libs.mlkit.text.recognition)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

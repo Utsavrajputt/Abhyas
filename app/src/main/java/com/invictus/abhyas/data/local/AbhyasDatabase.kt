@@ -15,8 +15,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AttemptQuestionEntity::class,
         BookmarkEntity::class,
         MistakeEntity::class,
+        PdfJobEntity::class,
+        PdfPageEntity::class,
+        PdfDraftEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AbhyasDatabase : RoomDatabase() {
@@ -25,6 +28,7 @@ abstract class AbhyasDatabase : RoomDatabase() {
     abstract fun attemptDao(): AttemptDao
     abstract fun bookmarkDao(): BookmarkDao
     abstract fun mistakeDao(): MistakeDao
+    abstract fun pdfDao(): PdfDao
 
     companion object {
         /** v1 -> v2: question-bank, attempt, bookmark and mistake tables. `questions` is unchanged. */
@@ -73,9 +77,41 @@ abstract class AbhyasDatabase : RoomDatabase() {
             }
         }
 
+        /** v2 -> v3: PDF Studio tables (jobs, extracted pages, parsed drafts). Existing tables are unchanged. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pdf_jobs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`fileName` TEXT NOT NULL, `localPath` TEXT NOT NULL, `pageCount` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, `nextPage` INTEGER NOT NULL, `ocrPages` INTEGER NOT NULL, " +
+                        "`message` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                        "`configJson` TEXT NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_pdf_jobs_status` ON `pdf_jobs` (`status`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pdf_pages` (`jobId` INTEGER NOT NULL, `page` INTEGER NOT NULL, " +
+                        "`text` TEXT NOT NULL, `method` TEXT NOT NULL, `hasImages` INTEGER NOT NULL, " +
+                        "`linesJson` TEXT, `pageHeight` REAL NOT NULL, PRIMARY KEY(`jobId`, `page`), " +
+                        "FOREIGN KEY(`jobId`) REFERENCES `pdf_jobs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pdf_drafts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`jobId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `number` TEXT NOT NULL, " +
+                        "`page` INTEGER NOT NULL, `type` TEXT NOT NULL, `statement` TEXT NOT NULL, " +
+                        "`payloadJson` TEXT NOT NULL, `explanation` TEXT, `subject` TEXT, `chapter` TEXT, " +
+                        "`topic` TEXT, `difficulty` TEXT, `confidence` REAL NOT NULL, `issues` TEXT NOT NULL, " +
+                        "`errors` TEXT NOT NULL, `status` TEXT NOT NULL, `duplicateOf` TEXT, " +
+                        "`selected` INTEGER NOT NULL, `edited` INTEGER NOT NULL, `hasFigureHint` INTEGER NOT NULL, " +
+                        "`imagePath` TEXT, `suggestedChapter` TEXT, " +
+                        "FOREIGN KEY(`jobId`) REFERENCES `pdf_jobs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_pdf_drafts_jobId_position` ON `pdf_drafts` (`jobId`, `position`)")
+            }
+        }
+
         fun build(context: Context): AbhyasDatabase =
             Room.databaseBuilder(context, AbhyasDatabase::class.java, "abhyas.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

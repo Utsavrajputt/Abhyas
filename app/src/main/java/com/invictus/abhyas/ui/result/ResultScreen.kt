@@ -46,6 +46,7 @@ import com.invictus.abhyas.domain.analytics.AnswerFormatter
 import com.invictus.abhyas.domain.analytics.Dimension
 import com.invictus.abhyas.domain.model.Verdict
 import com.invictus.abhyas.ui.library.FilterDropdown
+import com.invictus.abhyas.ui.common.QuestionImage
 import com.invictus.abhyas.ui.math.MathText
 import com.invictus.abhyas.ui.progress.BreakdownRow
 import com.invictus.abhyas.ui.progress.fmtDate
@@ -187,6 +188,7 @@ private fun ReviewCard(r: ReviewItem, bookmarked: Boolean, onBookmark: () -> Uni
                 }
             }
             MathText(q.statement)
+            QuestionImage(q.imagePath)
             Text("Your answer", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             MathText(AnswerFormatter.given(q, r.response))
             Text("Correct answer", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

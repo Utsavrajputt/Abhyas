@@ -62,6 +62,7 @@ import com.invictus.abhyas.domain.attempt.PaletteStatus
 import com.invictus.abhyas.domain.attempt.paletteStatus
 import com.invictus.abhyas.domain.model.QuestionType
 import com.invictus.abhyas.domain.model.hasAnswer
+import com.invictus.abhyas.ui.common.QuestionImage
 import com.invictus.abhyas.ui.math.MathText
 import com.invictus.abhyas.ui.screens.BodyMuted
 
@@ -132,8 +133,9 @@ fun SessionScreen(app: AbhyasApp, attemptId: Long, onFinished: () -> Unit, onExi
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 MathText(item.question.statement, style = MaterialTheme.typography.titleMedium)
-                if (item.question.type == QuestionType.IMAGE) {
-                    BodyMuted("Image-based question (image not available in this build).")
+                QuestionImage(item.question.imagePath)
+                if (item.question.type == QuestionType.IMAGE && item.question.imagePath.isNullOrBlank()) {
+                    BodyMuted("Image-based question (image not available).")
                 }
                 AnswerInput(item.question, item.response, vm::answer)
                 Text(

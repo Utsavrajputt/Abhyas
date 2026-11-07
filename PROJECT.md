@@ -105,11 +105,22 @@ Rules for new screens:
 - Keep a `confidence` score per parsed question and sort the review list by lowest confidence first.
 - Add a desktop-side script (`tools/pack_bank.py`) to checksum + zip packages for GitHub Releases / hosting.
 
+### Build status (M2)
+- [x] PDF pick via SAF, stored copy, source file name + page on every question
+- [x] Digital extraction (PdfBox-Android) in a WorkManager job: per-page progress, cancel, resume from the last page
+- [x] Offline OCR (ML Kit, bundled Latin model) for pages with no/garbled text
+- [x] Pure-Kotlin parsers (`domain/pdf`): boundary detection (Q1. / 1. / 1) / Question 1 / NCERT 5.3), options (1)-(4) / (a)-(d) / A. / 1), answer key at end, inline `Ans.` + `Sol.`, numerical/true-false/fill-blank/assertion-reason detection, original numbering kept
+- [x] Chapter/subject defaults per import, per-question override, keyword suggestions shown as *suggested* only
+- [x] Figure crop from the page (on demand per question, or for all flagged) linked via `imagePath`; shown in practice and results
+- [x] Review screen (status, confidence-sorted, inline edit, bulk actions, import selected), duplicates (content hash + bigram similarity), report screen
+- [x] Export reviewed set as a bank package (zip with `images/`); `tools/pack_bank.py` for desktop packing
+- [x] Room v3 (`pdf_jobs`, `pdf_pages`, `pdf_drafts`) + migration 2->3 + migration test
+
 ### Acceptance checklist
-- [ ] Parser unit tests on real fixture PDFs (digital + scanned)
-- [ ] Invalid PDF, missing answers, interrupted import tests
-- [ ] Large PDF (hundreds of pages) does not block UI or OOM
-- [ ] Exported package re-imports identically (round-trip test)
+- [ ] Parser unit tests on real fixture PDFs (digital + scanned) - needs your PDFs in `app/src/test/resources/fixtures/`; synthetic mechanics tests exist
+- [x] Invalid PDF (rejected before storing), missing answers (never guessed), interrupted import (page-level resume; final import is one DB transaction) - unit tests cover missing answers; the rest need a device run
+- [ ] Large PDF (hundreds of pages) does not block UI or OOM - designed page-by-page with temp-file PdfBox and per-page bitmap recycling; not yet measured on a device
+- [x] Exported package re-imports identically (round-trip test in `PackageExporterTest`)
 
 ---
 

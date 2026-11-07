@@ -25,6 +25,9 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Settings
 import com.invictus.abhyas.AbhyasApp
+import com.invictus.abhyas.ui.pdf.PdfReportScreen
+import com.invictus.abhyas.ui.pdf.PdfReviewScreen
+import com.invictus.abhyas.ui.pdf.PdfStudioScreen
 import com.invictus.abhyas.ui.screens.CreateScreen
 import com.invictus.abhyas.ui.screens.HomeScreen
 import com.invictus.abhyas.ui.library.BrowseScreen
@@ -54,11 +57,11 @@ fun AbhyasRoot(app: AbhyasApp) {
 
     Scaffold(
         bottomBar = {
-            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup"
+            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup" || currentRoute == "pdfstudio"
             if (showBar) ShortNavigationBar {
                 Tab.entries.forEach { tab ->
                     ShortNavigationBarItem(
-                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse"),
+                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse") || (tab == Tab.Create && currentRoute == "pdfstudio"),
                         onClick = {
                             navController.navigate(tab.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -91,7 +94,16 @@ fun AbhyasRoot(app: AbhyasApp) {
                 CreateScreen(
                     onCustomPractice = { navController.navigate("setup") },
                     onImportBank = { navController.navigate(Tab.Library.route) },
+                    onImportPdf = { navController.navigate("pdfstudio") },
                 )
+            }
+            composable("pdfstudio") { PdfStudioScreen(app, onOpenJob = { navController.navigate("pdf/$it") }) }
+            composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                val id = entry.arguments?.getLong("id") ?: 0L
+                PdfReviewScreen(app, id, onBack = { navController.popBackStack() }, onReport = { navController.navigate("pdf/$id/report") })
+            }
+            composable("pdf/{id}/report", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                PdfReportScreen(app, entry.arguments?.getLong("id") ?: 0L, onBack = { navController.popBackStack() })
             }
             composable("setup") { SetupScreen(app, onStarted = { navController.navigate("session/$it") { popUpTo("setup") { inclusive = true } } }) }
             composable("session/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->

@@ -261,7 +261,7 @@ fun HomeScreen(app: AbhyasApp, onOpenSession: (Long) -> Unit, onImportBank: () -
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit) {
+fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImportPdf: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExpressiveScreen(
         title = "Create",
@@ -287,7 +287,7 @@ fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit) {
                     text = { Text("Custom practice") },
                 )
                 FloatingActionButtonMenuItem(
-                    onClick = { expanded = false },
+                    onClick = { expanded = false; onImportPdf() },
                     icon = { Icon(Icons.Outlined.PictureAsPdf, contentDescription = null) },
                     text = { Text("Import PDF") },
                 )
@@ -301,7 +301,7 @@ fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit) {
     ) {
         SectionTitle("What you can create")
         BodyMuted("Custom practice sessions, PDF imports and question-bank imports. Use the + button to start.")
-        BodyMuted("Custom practice and bank import work now; PDF import arrives in Milestone 2.")
+        BodyMuted("PDF Studio reads digital and scanned PDFs, finds questions and answers, and lets you review before importing.")
     }
 }
 

@@ -5,8 +5,10 @@ import com.invictus.abhyas.data.local.AbhyasDatabase
 import com.invictus.abhyas.data.local.BankEntity
 import com.invictus.abhyas.data.local.toEntity
 import com.invictus.abhyas.domain.pack.PackageParseResult
+import com.invictus.abhyas.domain.pack.ParsedQuestion
 import com.invictus.abhyas.domain.pack.PackageParser
 import com.invictus.abhyas.domain.pack.QuestionError
+import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
 data class ImportReport(
@@ -33,8 +35,14 @@ sealed interface ImportResult {
 class BankImporter(
     private val db: AbhyasDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Where question images live: `<imagesRoot>/<bankId>/images/<file>`. Null = images are not stored. */
+    private val imagesRoot: File? = null,
 ) {
-    suspend fun install(manifestBytes: ByteArray, questionsBytes: ByteArray): ImportResult {
+    /**
+     * [stagedImages]: optional folder that contains an `images/` directory extracted from the package;
+     * its files are copied into the bank's image folder and `imagePath` entries are resolved to them.
+     */
+    suspend fun install(manifestBytes: ByteArray, questionsBytes: ByteArray, stagedImages: File? = null): ImportResult {
         val parsed = when (val r = PackageParser.parse(manifestBytes, questionsBytes)) {
             is PackageParseResult.Failure -> return ImportResult.Failure(r.reason)
             is PackageParseResult.Success -> r
@@ -43,6 +51,15 @@ class BankImporter(
         if (parsed.questions.isEmpty()) {
             return ImportResult.Failure("No valid questions in package (${parsed.errors.size} invalid)")
         }
+
+        // Do not touch stored images when the install is going to be a no-op or refused.
+        db.bankDao().getById(manifest.id)?.let { installed ->
+            if (installed.version == manifest.version) return ImportResult.AlreadyInstalled(installed.id, installed.version)
+            if (installed.version > manifest.version) {
+                return ImportResult.Failure("Installed version ${installed.version} is newer than package version ${manifest.version}")
+            }
+        }
+        val questions = resolveImages(manifest.id, parsed.questions, stagedImages)
 
         return try {
             db.withTransaction {
@@ -59,11 +76,11 @@ class BankImporter(
                 if (existing != null) db.questionDao().deleteByBank(manifest.id)
 
                 var imported = 0
-                parsed.questions.chunked(500).forEach { chunk ->
+                questions.chunked(500).forEach { chunk ->
                     val results = db.questionDao().insertAll(chunk.map { it.question.toEntity(it.contentHash) })
                     imported += results.count { it != -1L }
                 }
-                val skippedAgainstDb = parsed.questions.size - imported
+                val skippedAgainstDb = questions.size - imported
 
                 db.bankDao().upsert(
                     BankEntity(
@@ -97,6 +114,26 @@ class BankImporter(
         }
     }
 
+    /** Copies staged package images into app storage and rewrites relative `imagePath`s to absolute files. */
+    private fun resolveImages(bankId: String, questions: List<ParsedQuestion>, staged: File?): List<ParsedQuestion> {
+        val root = imagesRoot ?: return questions
+        val target = File(root, "$bankId/images")
+        val source = staged?.let { File(it, "images") }?.takeIf { it.isDirectory }
+        if (source != null) {
+            target.deleteRecursively()
+            target.mkdirs()
+            source.listFiles()?.filter { it.isFile }?.forEach { it.copyTo(File(target, it.name), overwrite = true) }
+        }
+        return questions.map { pq ->
+            val rel = pq.question.imagePath
+            if (rel.isNullOrBlank() || rel.startsWith("/")) return@map pq
+            val name = rel.substringAfterLast('/')
+            val file = File(target, name)
+            val safe = !rel.contains("..") && file.exists()
+            ParsedQuestion(pq.question.copy(imagePath = if (safe) file.absolutePath else null), pq.contentHash)
+        }
+    }
+
     /** Removes a bank with its questions, bookmarks and mistakes. Past attempts keep their snapshots. */
     suspend fun remove(bankId: String) {
         db.withTransaction {
@@ -105,5 +142,6 @@ class BankImporter(
             db.questionDao().deleteByBank(bankId)
             db.bankDao().delete(bankId)
         }
+        imagesRoot?.let { File(it, bankId).deleteRecursively() }
     }
 }

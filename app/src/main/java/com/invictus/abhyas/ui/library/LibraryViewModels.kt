@@ -53,9 +53,9 @@ class LibraryViewModel(private val app: AbhyasApp) : ViewModel() {
     /** Debug builds only: demo packages shipped in src/debug/assets/demo. Empty in release. */
     val demoPackages: List<String> = app.packageReader.assetPackages("demo")
 
-    fun importZip(uri: Uri) = startImport { app.packageReader.readZip(uri) }
-    fun importFolder(uri: Uri) = startImport { app.packageReader.readFolder(uri) }
-    fun installDemo(dir: String) = startImport { app.packageReader.readAsset("demo/$dir") }
+    fun importZip(uri: Uri) = startImport { stage -> app.packageReader.readZip(uri, stage) }
+    fun importFolder(uri: Uri) = startImport { _ -> app.packageReader.readFolder(uri) }
+    fun installDemo(dir: String) = startImport { _ -> app.packageReader.readAsset("demo/$dir") }
 
     fun dismiss() { _import.value = ImportUi.Idle }
 
@@ -63,20 +63,23 @@ class LibraryViewModel(private val app: AbhyasApp) : ViewModel() {
         viewModelScope.launch { app.bankImporter.remove(bankId) }
     }
 
-    private fun startImport(read: () -> PackageFiles) {
+    private fun startImport(read: (java.io.File) -> PackageFiles) {
         if (_import.value == ImportUi.Running) return
         _import.value = ImportUi.Running
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
+                val stage = java.io.File(app.cacheDir, "pkgstage_${System.nanoTime()}")
                 try {
-                    val files = read()
-                    app.bankImporter.install(files.manifest, files.questions)
+                    val files = read(stage)
+                    app.bankImporter.install(files.manifest, files.questions, stage)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: PackageReadException) {
                     ImportResult.Failure(e.message ?: "Unreadable package")
                 } catch (e: Exception) {
                     ImportResult.Failure("Could not read the package: ${e.message}")
+                } finally {
+                    stage.deleteRecursively()
                 }
             }
             _import.value = describe(result)
