@@ -93,6 +93,16 @@ object AiPrompts {
         }
     }
 
+    /** Asks for single-answer multiple-choice questions as a strict JSON array (see [AiQuestionParser]). */
+    fun mcq(passages: String, count: Int): AiPrompt = AiPrompt(
+        system = BASE,
+        json = true,
+        user = "Write $count multiple-choice questions based ONLY on the text below, in NEET/JEE style. Reply with a JSON array and nothing else. " +
+            "Each element: {\"question\": string, \"options\": [exactly 4 strings], \"correct\": \"A\"|\"B\"|\"C\"|\"D\", \"explanation\": string}. " +
+            "Exactly one option must be correct and checkable from the text; the wrong options must be plausible. " +
+            "Do not write \"all of the above\" or \"none of these\". Keep the question under 50 words.\n\nText:\n${clip(passages)}",
+    )
+
     /** A one-line request used by "Test connection" in Settings. */
     fun ping(): AiPrompt = AiPrompt(system = "Reply with the single word OK.", user = "Ping")
 }

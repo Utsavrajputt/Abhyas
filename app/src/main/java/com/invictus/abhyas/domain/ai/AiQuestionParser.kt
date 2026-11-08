@@ -4,8 +4,10 @@ import com.invictus.abhyas.domain.engine.Sha256
 import com.invictus.abhyas.domain.model.AssertionReasonPayload
 import com.invictus.abhyas.domain.model.Difficulty
 import com.invictus.abhyas.domain.model.Exam
+import com.invictus.abhyas.domain.model.Option
 import com.invictus.abhyas.domain.model.Question
 import com.invictus.abhyas.domain.model.QuestionType
+import com.invictus.abhyas.domain.model.SingleChoicePayload
 import com.invictus.abhyas.domain.ncert.NcertRef
 import com.invictus.abhyas.domain.validation.QuestionValidator
 import kotlinx.serialization.json.Json
@@ -52,6 +54,19 @@ object AiQuestionParser {
         return AiParseOutcome(out, rejected)
     }
 
+    fun parseMcq(raw: String, source: AiSource, limit: Int = 20): AiParseOutcome {
+        val array = extractArray(raw) ?: return AiParseOutcome(emptyList(), 0)
+        val out = ArrayList<Question>()
+        val seen = HashSet<String>()
+        var rejected = 0
+        for (el in array.take(limit * 2)) {
+            if (out.size >= limit) break
+            val q = buildMcq(el as? JsonObject, source)
+            if (q == null || !seen.add(q.id)) rejected++ else out += q
+        }
+        return AiParseOutcome(out, rejected)
+    }
+
     /** Pulls the first JSON array out of a reply that may be wrapped in ``` fences or prose. */
     fun extractArray(raw: String): JsonArray? {
         val start = raw.indexOf('[')
@@ -66,6 +81,36 @@ object AiQuestionParser {
 
     private fun str(o: JsonObject, key: String): String? =
         (o[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun buildMcq(o: JsonObject?, s: AiSource): Question? {
+        o ?: return null
+        val question = str(o, "question") ?: return null
+        if (question.length > MAX_STATEMENT) return null
+        val texts = (o["options"] as? JsonArray)?.map { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.contentOrNull?.trim().orEmpty() }
+            ?: return null
+        if (texts.size != 4 || texts.any { it.isEmpty() || it.length > 200 } || texts.map { it.lowercase() }.toSet().size != 4) return null
+        val letter = str(o, "correct")?.uppercase()?.firstOrNull { it in 'A'..'D' } ?: return null
+        val ids = listOf("a", "b", "c", "d")
+        val id = "$BANK_ID:" + Sha256.hex(question.lowercase().toByteArray(Charsets.UTF_8)).take(16)
+        val q = Question(
+            id = id,
+            bankId = BANK_ID,
+            type = QuestionType.SINGLE_MCQ,
+            statement = question,
+            payload = SingleChoicePayload(ids.zip(texts) { i, t -> Option(i, t) }, ids[letter - 'A']),
+            explanation = str(o, "explanation"),
+            exam = s.exam,
+            subject = s.subject,
+            classLevel = s.classLevel,
+            chapter = s.chapter,
+            difficulty = Difficulty.MEDIUM,
+            source = "AI-generated from NCERT text (unverified)",
+            tags = listOf("ai-generated"),
+            answerVerified = false,
+            ncertRef = s.ref,
+        )
+        return if (QuestionValidator.validate(q).isEmpty()) q else null
+    }
 
     private fun build(o: JsonObject?, s: AiSource): Question? {
         o ?: return null

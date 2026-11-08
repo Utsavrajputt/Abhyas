@@ -14,7 +14,10 @@ enum class GenKind(val label: String) {
     FILL_BLANK("Fill in the blanks"),
     TRUE_FALSE("True / false"),
     EXERCISE("Book exercises"),
-    ASSERTION_REASON("Assertion-reason (AI)"),
+    AI_MCQ("Multiple choice (AI)"),
+    ASSERTION_REASON("Assertion-reason (AI)");
+
+    val needsAi: Boolean get() = this == AI_MCQ || this == ASSERTION_REASON
 }
 
 class GenResult(val questions: List<Question>, val notes: List<String>)

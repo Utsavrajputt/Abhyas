@@ -98,7 +98,11 @@ fun AbhyasRoot(app: AbhyasApp) {
                 NcertScreen(app, onOpenBook = { navController.navigate("reader/$it") }, onPractice = { navController.navigate("ncertpractice") })
             }
             composable("ncertpractice") {
-                NcertPracticeScreen(app, onStarted = { navController.navigate("session/$it") { popUpTo("ncertpractice") { inclusive = true } } })
+                NcertPracticeScreen(
+                    app,
+                    onStarted = { navController.navigate("session/$it") { popUpTo("ncertpractice") { inclusive = true } } },
+                    onOpenSettings = { navController.navigate(Tab.Settings.route) },
+                )
             }
             composable(
                 "reader/{bookId}?page={page}&para={para}",

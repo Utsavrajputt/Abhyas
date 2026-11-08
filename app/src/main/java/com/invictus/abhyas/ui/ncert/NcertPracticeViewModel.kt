@@ -57,7 +57,7 @@ class NcertPracticeViewModel(private val app: AbhyasApp) : ViewModel() {
                 .collect { (books, ai) ->
                     _ui.update { cur ->
                         val keep = cur.bookId?.takeIf { id -> books.any { it.id == id } }
-                        val kinds = if (ai) cur.kinds else cur.kinds - GenKind.ASSERTION_REASON
+                        val kinds = if (ai) cur.kinds else cur.kinds.filterNot { it.needsAi }.toSet()
                         cur.copy(books = books, aiReady = ai, kinds = kinds, bookId = keep, chapters = if (keep == null) emptyList() else cur.chapters)
                     }
                     if (_ui.value.bookId == null && books.size == 1) selectBook(books.first().id)
@@ -139,19 +139,25 @@ class NcertPracticeViewModel(private val app: AbhyasApp) : ViewModel() {
             r.note?.let { notes += it }
         }
         var aiError: String? = null
-        if (GenKind.ASSERTION_REASON in s.kinds) {
+        val aiKinds = s.kinds.filter { it.needsAi }
+        if (aiKinds.isNotEmpty()) {
             val text = aiContext(passages)
             if (text.isBlank()) {
                 notes += "Not enough text for AI questions."
             } else {
-                when (val r = app.aiGateway.run(AiPrompts.assertionReason(text, minOf(share, 8)))) {
-                    is AiResult.Text -> {
-                        val parsed = AiQuestionParser.parseAssertionReason(r.text, ctx, limit = share)
-                        all += parsed.questions
-                        if (parsed.questions.isEmpty()) notes += "The AI reply could not be turned into questions."
-                        else notes += "AI questions are unverified and are not scored."
+                for (kind in aiKinds) {
+                    val n = minOf(share, 8)
+                    val prompt = if (kind == GenKind.AI_MCQ) AiPrompts.mcq(text, n) else AiPrompts.assertionReason(text, n)
+                    when (val r = app.aiGateway.run(prompt)) {
+                        is AiResult.Text -> {
+                            val parsed = if (kind == GenKind.AI_MCQ) AiQuestionParser.parseMcq(r.text, ctx, limit = share)
+                            else AiQuestionParser.parseAssertionReason(r.text, ctx, limit = share)
+                            all += parsed.questions
+                            notes += if (parsed.questions.isEmpty()) "The AI reply for ${kind.label} could not be turned into questions."
+                            else "${parsed.questions.size} AI question${if (parsed.questions.size == 1) "" else "s"} (${kind.label}) are unverified and not scored."
+                        }
+                        is AiResult.Failure -> { aiError = r.message; notes += "${kind.label} skipped: ${r.message}" }
                     }
-                    is AiResult.Failure -> { aiError = r.message; notes += "AI questions skipped: ${r.message}" }
                 }
             }
         }

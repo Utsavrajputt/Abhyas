@@ -10,6 +10,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,11 +34,20 @@ private val KIND_HELP = mapOf(
     GenKind.FILL_BLANK to "Defined terms from the text, with the term blanked out. Scored.",
     GenKind.TRUE_FALSE to "Sentences from the book, some changed to be false. Scored.",
     GenKind.EXERCISE to "The end-of-chapter exercises. NCERT prints no answers, so these are not scored.",
+    GenKind.AI_MCQ to "Four-option questions written by AI from the text. Unverified and not scored.",
     GenKind.ASSERTION_REASON to "Written by AI from the text. Unverified and not scored.",
 )
 
 @Composable
-fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit) {
+private fun KindRow(kind: GenKind, checked: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        ToggleButton(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(kind.label) }
+        BodyMuted(KIND_HELP.getValue(kind))
+    }
+}
+
+@Composable
+fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onOpenSettings: () -> Unit = {}) {
     val vm: NcertPracticeViewModel = viewModel(factory = ncertPracticeFactory(app))
     val ui by vm.ui.collectAsState()
     val book = ui.books.firstOrNull { it.id == ui.bookId }
@@ -61,18 +71,14 @@ fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit) {
         }
 
         SectionTitle("Question types")
-        GenKind.entries.forEach { kind ->
-            val enabled = kind != GenKind.ASSERTION_REASON || ui.aiReady
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                ToggleButton(
-                    checked = kind in ui.kinds,
-                    onCheckedChange = { vm.toggle(kind) },
-                    enabled = enabled,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(kind.label) }
-                BodyMuted(if (enabled) KIND_HELP.getValue(kind) else "Turn on AI in Settings and add your Gemini key to use this.")
-            }
+        GenKind.entries.filter { !it.needsAi }.forEach { kind -> KindRow(kind, kind in ui.kinds, true) { vm.toggle(kind) } }
+
+        SectionTitle("Make with AI")
+        if (!ui.aiReady) {
+            BodyMuted("Needs AI turned on and your Gemini API key saved in Settings.")
+            FilledTonalButton(onClick = onOpenSettings, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Open AI settings") }
         }
+        GenKind.entries.filter { it.needsAi }.forEach { kind -> KindRow(kind, kind in ui.kinds, ui.aiReady) { vm.toggle(kind) } }
 
         SectionTitle("Questions")
         ConnectedToggleGroup(PRACTICE_COUNTS.map { "$it" }, ui.countIdx) { vm.selectCount(it) }
