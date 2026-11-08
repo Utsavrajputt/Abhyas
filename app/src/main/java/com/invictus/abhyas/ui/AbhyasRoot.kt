@@ -1,16 +1,32 @@
 package com.invictus.abhyas.ui
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.unit.dp
+import com.invictus.abhyas.data.prefs.UserSettings
+import com.invictus.abhyas.ui.components.FloatingNavigation
+import com.invictus.abhyas.ui.components.LocalBackAction
+import com.invictus.abhyas.ui.components.LocalShellActions
+import com.invictus.abhyas.ui.components.PillTab
+import com.invictus.abhyas.ui.components.ShellActions
+import com.invictus.abhyas.ui.icons.AppIcons
+import com.invictus.abhyas.ui.settings.AboutScreen
+import com.invictus.abhyas.ui.settings.AiSettingsScreen
+import com.invictus.abhyas.ui.settings.AppearanceSettingsScreen
+import com.invictus.abhyas.ui.settings.DataSettingsScreen
+import com.invictus.abhyas.ui.settings.LibrariesScreen
+import com.invictus.abhyas.ui.settings.SettingsRootScreen
+import kotlinx.coroutines.launch
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -18,12 +34,6 @@ import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Insights
-import androidx.compose.material.icons.outlined.LibraryBooks
-import androidx.compose.material.icons.outlined.Settings
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.ui.ncert.NcertPracticeScreen
 import com.invictus.abhyas.ui.ncert.NcertScreen
@@ -39,14 +49,25 @@ import com.invictus.abhyas.ui.result.ResultScreen
 import com.invictus.abhyas.ui.session.SessionScreen
 import com.invictus.abhyas.ui.setup.SetupScreen
 import com.invictus.abhyas.ui.progress.ProgressScreen
-import com.invictus.abhyas.ui.screens.SettingsScreen
 
-private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
-    Home("home", "Home", Icons.Outlined.Home),
-    Library("library", "Library", Icons.Outlined.LibraryBooks),
-    Create("create", "Create", Icons.Outlined.Add),
-    Progress("progress", "Progress", Icons.Outlined.Insights),
-    Settings("settings", "Settings", Icons.Outlined.Settings),
+/** The three pill tabs. Create is the separate round + button; Settings lives in the top bar. */
+private enum class Tab(val route: String, val label: String, val activeWidth: Int) {
+    Home("home", "Home", 96),
+    Library("library", "Library", 108),
+    Progress("progress", "Progress", 116),
+}
+
+private const val ROUTE_CREATE = "create"
+private const val ROUTE_SETTINGS = "settings"
+
+private val TOP_LEVEL_ROUTES = setOf(Tab.Home.route, Tab.Library.route, Tab.Progress.route, ROUTE_CREATE)
+
+private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("browse", "setup", "pdfstudio", "ncert", "ncertpractice")
+
+private fun Tab.icon() = when (this) {
+    Tab.Home -> AppIcons.Home
+    Tab.Library -> AppIcons.LibraryBooks
+    Tab.Progress -> AppIcons.Insights
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -58,24 +79,56 @@ fun AbhyasRoot(app: AbhyasApp) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
+    val settings by app.settingsStore.settings.collectAsState(initial = UserSettings())
+    val systemDark = isSystemInDarkTheme()
+    val isDark = settings.darkMode ?: systemDark
+    val scope = rememberCoroutineScope()
+    val pillTabs = remember {
+        Tab.entries.map { PillTab(it.label, it.icon(), it.activeWidth.dp) }
+    }
+    val isTopLevel = currentRoute in TOP_LEVEL_ROUTES
+    val shellActions = remember(isDark) {
+        ShellActions(
+            isDark = isDark,
+            onOpenSettings = {
+                navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true }
+            },
+            onToggleDark = { scope.launch { app.settingsStore.setDarkMode(!isDark) } },
+        )
+    }
+    val backAction: (() -> Unit)? = if (isTopLevel) null else ({ navController.popBackStack(); Unit })
+
+    CompositionLocalProvider(
+        LocalShellActions provides (if (isTopLevel) shellActions else null),
+        LocalBackAction provides backAction,
+    ) {
     Scaffold(
         bottomBar = {
-            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup" || currentRoute == "pdfstudio" || currentRoute == "ncert" || currentRoute == "ncertpractice"
-            if (showBar) ShortNavigationBar {
-                Tab.entries.forEach { tab ->
-                    ShortNavigationBarItem(
-                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse") || (tab == Tab.Create && currentRoute == "pdfstudio") || (tab == Tab.Library && currentRoute == "ncert") || (tab == Tab.Create && currentRoute == "ncertpractice"),
-                        onClick = {
-                            navController.navigate(tab.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
-                    )
+            if (currentRoute in NAV_BAR_ROUTES) {
+                val selectedIndex = when (currentRoute) {
+                    Tab.Home.route -> 0
+                    Tab.Library.route, "browse", "ncert" -> 1
+                    Tab.Progress.route -> 2
+                    else -> null
                 }
+                FloatingNavigation(
+                    tabs = pillTabs,
+                    selectedIndex = selectedIndex,
+                    onTabSelected = { index ->
+                        navController.navigate(Tab.entries[index].route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onCreate = {
+                        navController.navigate(ROUTE_CREATE) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
         },
     ) { padding ->
@@ -101,7 +154,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                 NcertPracticeScreen(
                     app,
                     onStarted = { navController.navigate("session/$it") { popUpTo("ncertpractice") { inclusive = true } } },
-                    onOpenSettings = { navController.navigate(Tab.Settings.route) },
+                    onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                 )
             }
             composable(
@@ -121,7 +174,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                 )
             }
             composable("browse") { BrowseScreen(app) }
-            composable(Tab.Create.route) {
+            composable(ROUTE_CREATE) {
                 CreateScreen(
                     onCustomPractice = { navController.navigate("setup") },
                     onImportBank = { navController.navigate(Tab.Library.route) },
@@ -159,7 +212,26 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onOpenSession = { navController.navigate("session/$it") },
                 )
             }
-            composable(Tab.Settings.route) { SettingsScreen(app) }
+            composable(ROUTE_SETTINGS) {
+                SettingsRootScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenAppearance = { navController.navigate("settings/appearance") },
+                    onOpenAi = { navController.navigate("settings/ai") },
+                    onOpenData = { navController.navigate("settings/data") },
+                    onOpenAbout = { navController.navigate("settings/about") },
+                )
+            }
+            composable("settings/appearance") { AppearanceSettingsScreen(app, onBack = { navController.popBackStack() }) }
+            composable("settings/ai") { AiSettingsScreen(app, onBack = { navController.popBackStack() }) }
+            composable("settings/data") { DataSettingsScreen(app, onBack = { navController.popBackStack() }) }
+            composable("settings/about") {
+                AboutScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenLibraries = { navController.navigate("settings/libraries") },
+                )
+            }
+            composable("settings/libraries") { LibrariesScreen(onBack = { navController.popBackStack() }) }
         }
+    }
     }
 }

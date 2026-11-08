@@ -5,16 +5,19 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.invictus.abhyas.ui.theme.AppTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
-
 data class UserSettings(
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val dynamicColor: Boolean = true,
+    /** Selected colour theme (Aurora by default). */
+    val appTheme: AppTheme = AppTheme.Default,
+    /** null = follow the system until the user picks light/dark explicitly. */
+    val darkMode: Boolean? = null,
+    /** Pure-black surfaces, only applied while dark mode is on. */
+    val amoled: Boolean = false,
     /** AI is optional and OFF by default; the app never needs it. */
     val aiEnabled: Boolean = false,
     /** Gemini model id used for AI features. */
@@ -25,8 +28,11 @@ data class UserSettings(
 
 class SettingsStore(private val context: Context) {
     private object Keys {
-        val theme = stringPreferencesKey("theme_mode")
-        val dynamic = booleanPreferencesKey("dynamic_color")
+        /** Legacy key (SYSTEM / LIGHT / DARK), read once as a fallback for [dark]. */
+        val legacyThemeMode = stringPreferencesKey("theme_mode")
+        val appTheme = stringPreferencesKey("app_theme")
+        val dark = booleanPreferencesKey("dark_mode")
+        val amoled = booleanPreferencesKey("amoled_mode")
         val ai = booleanPreferencesKey("ai_enabled")
         val aiModel = stringPreferencesKey("ai_model")
         val ncertIndex = stringPreferencesKey("ncert_index_url")
@@ -34,21 +40,29 @@ class SettingsStore(private val context: Context) {
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { p ->
         UserSettings(
-            themeMode = p[Keys.theme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-                ?: ThemeMode.SYSTEM,
-            dynamicColor = p[Keys.dynamic] ?: true,
+            appTheme = AppTheme.fromKey(p[Keys.appTheme]),
+            darkMode = p[Keys.dark] ?: when (p[Keys.legacyThemeMode]) {
+                "DARK" -> true
+                "LIGHT" -> false
+                else -> null
+            },
+            amoled = p[Keys.amoled] ?: false,
             aiEnabled = p[Keys.ai] ?: false,
             aiModel = p[Keys.aiModel]?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash",
             ncertIndexUrl = p[Keys.ncertIndex] ?: "",
         )
     }
 
-    suspend fun setThemeMode(mode: ThemeMode) {
-        context.settingsDataStore.edit { it[Keys.theme] = mode.name }
+    suspend fun setAppTheme(theme: AppTheme) {
+        context.settingsDataStore.edit { it[Keys.appTheme] = theme.storageKey }
     }
 
-    suspend fun setDynamicColor(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.dynamic] = enabled }
+    suspend fun setDarkMode(dark: Boolean) {
+        context.settingsDataStore.edit { it[Keys.dark] = dark }
+    }
+
+    suspend fun setAmoled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.amoled] = enabled }
     }
 
     suspend fun setAiEnabled(enabled: Boolean) {

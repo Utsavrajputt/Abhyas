@@ -14,7 +14,7 @@ This file is the single source of truth for scope and milestones. Hand **one mil
 | Package | `com.invictus.abhyas` |
 | minSdk / target / compile | 26 / 36 / 37 |
 | Stack | Kotlin 2.3.0, AGP 9.1.0, Gradle 9.3.1, compileSdk 37, Compose (BOM 2025.09.01), Material 3 1.5.0-rc01 (Expressive APIs are public only from 1.5), Navigation Compose, Room 2.6.1 (KSP), DataStore, WorkManager, kotlinx-serialization |
-| Navigation | Bottom bar: Home, Library, Create, Progress, Settings |
+| Navigation | xmd-style floating pill bar: Home, Library, Progress + separate round Create (+) button; Settings (and the dark/light toggle) live in the top bar |
 | Signing secrets (names only) | `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` |
 | CI | `.github/workflows/android.yml` — builds release APKs, signs with `apksigner`, uploads `Abhyas-arm64-v8a` and `Abhyas-armeabi-v7a` separately (unsigned if secrets missing, clearly named) |
 
@@ -22,7 +22,7 @@ Signing happens only in CI via `apksigner` using the repository secrets (no sign
 
 ## Material 3 Expressive — mandatory UI rules (every milestone)
 
-All UI must use **Material 3 Expressive** (material3 1.5.0-rc01+, `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`). Already in the scaffold: `MaterialExpressiveTheme`, expressive motion scheme, dynamic colour, `ShortNavigationBar`, shape-morphing buttons, `ToggleButton` groups, `MaterialShapes`, emphasized typography.
+All UI must use **Material 3 Expressive** (material3 1.5.0-rc01+, `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`). Already in the scaffold: `MaterialExpressiveTheme`, expressive motion scheme, xmd theme picker (Aurora, Amethyst, Catppuccin, Nord, Tokyo Night, Rosé Pine; light/dark/AMOLED), floating pill navigation, shape-morphing buttons, `ToggleButton` groups, `MaterialShapes`, emphasized typography.
 
 Rules for new screens:
 1. Keep the simple screen header (title + subtitle); do not use large collapsing top app bars.

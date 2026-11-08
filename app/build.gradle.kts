@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
+    implementation(libs.icons.material.symbols)
+    implementation(libs.icons.material.symbols.rounded.filled)
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.room.runtime)

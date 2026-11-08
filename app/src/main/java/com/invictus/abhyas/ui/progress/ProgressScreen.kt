@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import com.invictus.abhyas.ui.components.MainTopBar
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -82,17 +83,14 @@ fun ProgressScreen(app: AbhyasApp, onOpenResult: (Long) -> Unit, onOpenSession: 
         }
     }
 
+    Column(Modifier.fillMaxSize()) {
+    MainTopBar(title = "Progress")
     LazyColumn(
-        Modifier.fillMaxSize().statusBarsPadding(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp),
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Progress", style = MaterialTheme.typography.headlineMedium)
-                BodyMuted("Results and analytics")
-            }
-        }
+        item { BodyMuted("Results and analytics") }
         item { ConnectedToggleGroup(TABS, tab) { tab = it } }
 
         val h = history
@@ -105,6 +103,7 @@ fun ProgressScreen(app: AbhyasApp, onOpenResult: (Long) -> Unit, onOpenSession: 
             else -> savedTab(vm, saved, onPractice = { practice(PracticeMode.BOOKMARKED) })
         }
         message?.let { item { BodyMuted(it) } }
+    }
     }
 
     pendingDelete?.let { a ->

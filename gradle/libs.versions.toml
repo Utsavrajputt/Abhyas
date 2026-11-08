@@ -21,6 +21,7 @@ androidxTestCore = "1.6.1"
 androidxTestExtJunit = "1.2.1"
 pdfboxAndroid = "2.0.27.0"
 mlkitText = "16.0.1"
+iconsMaterialSymbols = "2.2.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -53,6 +54,10 @@ androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "a
 
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }
+
+# Material Symbols (same icon set and version as xmd)
+icons-material-symbols = { module = "com.composables:icons-material-symbols-cmp", version.ref = "iconsMaterialSymbols" }
+icons-material-symbols-rounded-filled = { module = "com.composables:icons-material-symbols-rounded-filled-cmp", version.ref = "iconsMaterialSymbols" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

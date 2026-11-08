@@ -2,6 +2,17 @@
 
 All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradle.kts`.
 
+## [Unreleased] - xmd-style UI
+
+### Changed
+- Navigation: xmd-style floating pill bar (Home, Library, Progress) with a separate round Create (+) button. Settings moved to the top bar.
+- Top bar on every screen like xmd: flat emphasized title, dark/light toggle (also on title tap) and Settings gear; sub-screens show a back arrow.
+- Icons: Material Symbols (rounded, filled), the same set xmd uses (`icons-material-symbols` 2.2.1).
+- Themes: xmd's picker with Aurora (default), Amethyst, Catppuccin, Nord, Tokyo Night and Rosé Pine, each with light, dark and AMOLED schemes, plus xmd's circular reveal when the theme changes. Replaces System/Light/Dark + dynamic colour. An earlier explicit Light/Dark choice is kept.
+- Settings: xmd-style root with Appearance, AI, NCERT & data and About sub-screens.
+- About: xmd's About (hero, Libraries, GitHub, support, GitHub contributors, licence) without the update check.
+- Space Grotesk headings and xmd corner radii.
+
 ## [0.2.0] - Milestone 3 (NCERT Connect, optional AI, polish)
 
 ### Added

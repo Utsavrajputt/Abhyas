@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import com.invictus.abhyas.ui.components.AbhyasTopBar
+import com.invictus.abhyas.ui.components.BackNavigationIcon
+import com.invictus.abhyas.ui.components.LocalBackAction
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ButtonDefaults
@@ -54,18 +57,21 @@ fun BrowseScreen(app: AbhyasApp) {
     val paging = vm.questions.collectAsLazyPagingItems()
 
 
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Questions", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                "$count matching",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+    val back = LocalBackAction.current
+    Column(Modifier.fillMaxSize()) {
+        AbhyasTopBar(
+            title = { Text("Questions") },
+            navigationIcon = { back?.let { BackNavigationIcon(onBack = it) } },
+        )
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+        Text(
+            "$count matching",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         FilterControls(vm, showSearch = true)
 
@@ -84,6 +90,7 @@ fun BrowseScreen(app: AbhyasApp) {
                     }
                 }
             }
+        }
         }
     }
 }

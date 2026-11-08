@@ -58,21 +58,25 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.local.AbhyasDatabase
+import com.invictus.abhyas.ui.components.AbhyasTopBar
+import com.invictus.abhyas.ui.components.BackNavigationIcon
+import com.invictus.abhyas.ui.components.LocalBackAction
+import com.invictus.abhyas.ui.components.MainTopBar
 import com.invictus.abhyas.data.repo.StartResult
 import com.invictus.abhyas.domain.attempt.PracticeConfig
 import com.invictus.abhyas.domain.attempt.PracticeMode
 import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.domain.query.QuestionFilter
-import com.invictus.abhyas.data.prefs.SettingsStore
-import com.invictus.abhyas.data.prefs.ThemeMode
-import com.invictus.abhyas.data.prefs.UserSettings
 import kotlinx.coroutines.launch
 
 // ---------------------------------------------------------------------------------------------
 // Shared expressive building blocks
 // ---------------------------------------------------------------------------------------------
 
-/** Screen frame: simple title + subtitle header, scrollable content (+ optional FAB). */
+/**
+ * Screen frame: xmd-style top bar (title; dark/light toggle + Settings gear on the main
+ * tabs, a back arrow on sub-screens), the subtitle, then scrollable content (+ optional FAB).
+ */
 @Composable
 internal fun ExpressiveScreen(
     title: String,
@@ -80,7 +84,18 @@ internal fun ExpressiveScreen(
     floatingActionButton: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val back = LocalBackAction.current
     Scaffold(
+        topBar = {
+            if (back != null) {
+                AbhyasTopBar(
+                    title = { Text(title) },
+                    navigationIcon = { BackNavigationIcon(onBack = back) },
+                )
+            } else {
+                MainTopBar(title = title)
+            }
+        },
         // The root scaffold already pads for the bottom navigation bar.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = floatingActionButton,
@@ -89,19 +104,15 @@ internal fun ExpressiveScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 24.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             content()
         }
     }
@@ -309,58 +320,5 @@ fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImpor
         BodyMuted("Custom practice sessions, PDF imports and question-bank imports. Use the + button to start.")
         BodyMuted("PDF Studio reads digital and scanned PDFs, finds questions and answers, and lets you review before importing.")
         BodyMuted("Practice from NCERT makes fill-in-the-blank and true/false questions from your books, and can add book exercises and AI assertion-reason questions.")
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------------------------
-
-@Composable
-fun SettingsScreen(app: com.invictus.abhyas.AbhyasApp) {
-    val store = app.settingsStore
-    val settings by store.settings.collectAsState(initial = UserSettings())
-    val scope = rememberCoroutineScope()
-    val modes = ThemeMode.entries
-
-    ExpressiveScreen("Settings", "Theme, exam templates, AI") {
-        SectionTitle("Theme")
-        ConnectedToggleGroup(
-            items = listOf("System", "Light", "Dark"),
-            selected = modes.indexOf(settings.themeMode),
-        ) { scope.launch { store.setThemeMode(modes[it]) } }
-
-        SwitchRow(
-            title = "Dynamic colour",
-            description = "Match your wallpaper (Android 12+)",
-            checked = settings.dynamicColor,
-        ) { scope.launch { store.setDynamicColor(it) } }
-
-        SectionTitle("AI (optional)")
-        SwitchRow(
-            title = "Enable AI features",
-            description = "Off by default. Practice, scoring and reading never need AI. AI content is always shown as unverified.",
-            checked = settings.aiEnabled,
-        ) { scope.launch { store.setAiEnabled(it) } }
-        if (settings.aiEnabled) com.invictus.abhyas.ui.ai.AiSettingsSection(app, settings.aiModel)
-    }
-}
-
-@Composable
-private fun SwitchRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
