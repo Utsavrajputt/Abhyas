@@ -36,4 +36,5 @@ object AppIcons {
     val Pdf: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Picture_as_pdf }
     val FileOpen: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.File_open }
     val Download: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Download }
+    val Close: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Close }
 }

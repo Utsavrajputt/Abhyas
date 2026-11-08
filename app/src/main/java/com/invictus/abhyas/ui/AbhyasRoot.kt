@@ -160,9 +160,16 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onBrowse = { navController.navigate("browse") },
                     onOpenNcert = { navController.navigate("ncert") },
                     onOpenPyq = { navController.navigate("pyq") },
+                    onOpenBook = { navController.navigate("reader/$it") },
                 )
             }
-            composable("pyq") { PyqStoreScreen(app, onOpenSettings = { navController.navigate("settings/data") }) }
+            composable("pyq") {
+                PyqStoreScreen(
+                    app,
+                    onOpenSettings = { navController.navigate("settings/data") },
+                    onOpenStudio = { navController.navigate("pdfstudio") },
+                )
+            }
             composable("ncert") {
                 NcertScreen(app, onOpenBook = { navController.navigate("reader/$it") }, onPractice = { navController.navigate("ncertpractice") })
             }

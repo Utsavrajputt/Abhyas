@@ -128,6 +128,55 @@ class BookRepository(
         }
     }
 
+    /**
+     * Merges downloaded chapter PDFs into one book (kept in app storage) and queues the text indexer,
+     * so a book fetched from the official NCERT site reads, bookmarks and links questions exactly
+     * like an imported one.
+     */
+    suspend fun addMerged(
+        id: String,
+        title: String,
+        classLevel: Int?,
+        subject: String,
+        chapters: List<File>,
+        sourceUrl: String,
+    ): AddResult = withContext(Dispatchers.IO) {
+        dao.getBook(id)?.let { if (it.status != BookStatus.FAILED) return@withContext AddResult.Existing(id) }
+        val dir = File(root, id).apply { mkdirs() }
+        val dest = File(dir, "book.pdf")
+        try {
+            val merger = com.tom_roush.pdfbox.multipdf.PDFMergerUtility()
+            merger.destinationFileName = dest.absolutePath
+            chapters.forEach { merger.addSource(it) }
+            merger.mergeDocuments(com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly())
+            val md = MessageDigest.getInstance("SHA-256")
+            dest.inputStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    md.update(buf, 0, n)
+                }
+            }
+            val checksum = md.digest().joinToString("") { "%02x".format(it) }
+            val pages = PdfPageRenderer(dest).use { it.pageCount }
+            val book = BookEntity(
+                id = id, title = title, classLevel = classLevel, subject = subject, localPath = dest.absolutePath,
+                pageCount = pages, checksum = checksum, origin = "DOWNLOAD", sourceUrl = sourceUrl,
+                status = BookStatus.INDEXING, indexedPages = 0, message = null, lastPage = 1, addedAt = clock(),
+            )
+            if (dao.getBook(id) == null) dao.insertBook(book) else dao.updateBook(book)
+            enqueueIndex(id, replace = true)
+            AddResult.Added(id)
+        } catch (e: CancellationException) {
+            dir.deleteRecursively()
+            throw e
+        } catch (e: Exception) {
+            dir.deleteRecursively()
+            AddResult.Failed("Could not build the book: ${e.message}")
+        }
+    }
+
     private fun displayName(uri: Uri): String? = try {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null

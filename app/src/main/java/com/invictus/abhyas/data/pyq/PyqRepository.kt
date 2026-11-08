@@ -64,7 +64,7 @@ class PyqRepository(
         val zip = File(context.cacheDir, "pyq_${entry.id}.zip")
         val stage = File(context.cacheDir, "pyqstage_${System.nanoTime()}")
         try {
-            download(entry, zip)
+            fetchTo(entry.url, zip, MAX_PACK_BYTES, entry.sha256)
             val files = reader.readZip(Uri.fromFile(zip), stage)
             when (val r = importer.install(files.manifest, files.questions, stage)) {
                 is ImportResult.Success -> PyqInstallResult.Installed("${r.report.imported} questions added")
@@ -83,11 +83,74 @@ class PyqRepository(
         }
     }
 
-    private fun download(entry: PyqEntry, target: File) {
-        val conn = URL(entry.url).openConnection() as HttpURLConnection
+    /** Fetches a web page (https, up to 3 MB) and lists the .pdf / .zip links in it. */
+    suspend fun scanPage(pageUrl: String): List<FoundLink> = withContext(Dispatchers.IO) {
+        require(pageUrl.startsWith("https://")) { "The page link must start with https://" }
+        val conn = URL(pageUrl).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 30_000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", USER_AGENT)
+            conn.setRequestProperty("Accept", "text/html,*/*")
+            if (conn.responseCode != 200) throw IOException("Server answered ${conn.responseCode}")
+            val html = String(conn.inputStream.use { it.readBounded(3 * 1024 * 1024) }, Charsets.UTF_8)
+            // After redirects the final address is the base for relative links.
+            PageLinkScanner.parse(html, conn.url.toString())
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** Downloads a user-added pack zip (no checksum is available) and installs it as a question bank. */
+    suspend fun installPack(link: PaperLink): PyqInstallResult = withContext(Dispatchers.IO) {
+        val zip = File(context.cacheDir, "pack_${link.id}.zip")
+        val stage = File(context.cacheDir, "packstage_${System.nanoTime()}")
+        try {
+            fetchTo(link.url, zip, MAX_PACK_BYTES, null)
+            val files = reader.readZip(Uri.fromFile(zip), stage)
+            when (val r = importer.install(files.manifest, files.questions, stage)) {
+                is ImportResult.Success -> PyqInstallResult.Installed("${r.report.imported} questions added")
+                is ImportResult.AlreadyInstalled -> PyqInstallResult.Installed("Already installed")
+                is ImportResult.Failure -> PyqInstallResult.Failed(r.message)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PackageReadException) {
+            PyqInstallResult.Failed(e.message ?: "This is not an Abhyas question-bank zip")
+        } catch (e: Exception) {
+            PyqInstallResult.Failed("Download failed: ${e.message}")
+        } finally {
+            zip.delete()
+            stage.deleteRecursively()
+        }
+    }
+
+    /** Downloads a user-added paper PDF into the cache and returns it; PDF Studio imports it from there. */
+    suspend fun downloadPaperPdf(link: PaperLink): File = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "papers").apply { mkdirs() }
+        // Keep the folder small: drop earlier downloads older than a day.
+        dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24L * 60 * 60 * 1000 }?.forEach { it.delete() }
+        val slug = link.title.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(40).ifEmpty { "paper" }
+        val target = File(dir, "$slug.pdf")
+        fetchTo(link.url, target, MAX_PDF_BYTES, null)
+        val head = ByteArray(8)
+        val n = target.inputStream().use { it.read(head) }
+        if (n < 4 || String(head, 0, 4, Charsets.ISO_8859_1) != "%PDF") {
+            target.delete()
+            throw IOException("The link did not return a PDF (it may need a login or open a web page)")
+        }
+        target
+    }
+
+    private fun fetchTo(url: String, target: File, maxBytes: Long, expectedSha256: String?) {
+        require(url.startsWith("https://")) { "Only https:// links are allowed" }
+        val conn = URL(url).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 20_000
             conn.readTimeout = 60_000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", USER_AGENT)
             if (conn.responseCode != 200) throw IOException("Server answered ${conn.responseCode}")
             val digest = MessageDigest.getInstance("SHA-256")
             var total = 0L
@@ -98,15 +161,17 @@ class PyqRepository(
                         val n = input.read(buf)
                         if (n < 0) break
                         total += n
-                        if (total > MAX_PACK_BYTES) throw IOException("Pack is larger than ${MAX_PACK_BYTES / (1024 * 1024)} MB")
+                        if (total > maxBytes) throw IOException("File is larger than ${maxBytes / (1024 * 1024)} MB")
                         digest.update(buf, 0, n)
                         out.write(buf, 0, n)
                     }
                 }
             }
-            val actual = digest.digest().joinToString("") { "%02x".format(it) }
-            if (!actual.equals(entry.sha256, ignoreCase = true)) {
-                throw IOException("Checksum mismatch - the file was changed or damaged")
+            if (expectedSha256 != null) {
+                val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                    throw IOException("Checksum mismatch - the file was changed or damaged")
+                }
             }
         } finally {
             conn.disconnect()
@@ -116,6 +181,8 @@ class PyqRepository(
     companion object {
         private const val MAX_INDEX_BYTES = 1024 * 1024
         private const val MAX_PACK_BYTES = 120L * 1024 * 1024
+        private const val MAX_PDF_BYTES = 150L * 1024 * 1024
+        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
         private val ID_REGEX = Regex("[a-z0-9][a-z0-9_-]{0,63}")
         private val SHA_REGEX = Regex("[0-9a-fA-F]{64}")
 

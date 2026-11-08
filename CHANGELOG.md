@@ -17,7 +17,15 @@ All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradl
 - Home redesigned around the app-wide exam: big NEET / JEE Main cards, exam hero card with question count, practice by subject, quick practice, resume.
 - Settings > Exam: NEET or JEE Main. Home, Library (banks), PYQ store and the default Browse / Custom practice filter follow it. Progress still shows all attempts.
 
+### Changed (round 3)
+- Home: removed the NEET/JEE selector and the "Your exam" card (the exam is chosen in Settings > Exam). New "Today's practice": three random questions, one per subject (Physics, Chemistry, Biology; Maths for JEE), stable for the day.
+- Library: new Books slider (horizontal) above the question banks; tap a book to read it.
+- The package icon now opens Downloads with two tabs: Books and Previous papers.
+
 ### Added
+- Downloads > Previous papers > My links: add any https link yourself (a paper PDF, or an Abhyas question-bank zip). A PDF is downloaded and opened in PDF Studio for import settings (exam, subject, year pre-filled) and review; a zip is installed as a bank. No source is built in.
+- "Find PDFs on a web page": paste a page address, the app lists the .pdf / .zip links in its source and you tick the ones to save as links. Simple pages only (no login, no JavaScript-built links).
+- Downloads > Books: NCERT Physics, Chemistry, Biology and Maths for Class 11 and 12, fetched chapter by chapter from the official NCERT site (ncert.nic.in/textbook/pdf), merged into one book, then indexed for reading and search.
 - Previous year papers store (package icon in the Library top bar): NEET 2016-2025 as one downloadable question bank per year, installed through the normal importer after a SHA-256 check. Source is an HTTPS `index.json` set in Settings > NCERT & data (build it with `tools/build_pyq_index.py`).
 
 ## [0.2.0] - Milestone 3 (NCERT Connect, optional AI, polish)

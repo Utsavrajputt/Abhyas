@@ -5,6 +5,8 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.invictus.abhyas.data.pyq.PaperLink
+import com.invictus.abhyas.data.pyq.PaperLinkCodec
 import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.ui.theme.AppTheme
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +45,7 @@ class SettingsStore(private val context: Context) {
         val ncertIndex = stringPreferencesKey("ncert_index_url")
         val exam = stringPreferencesKey("exam")
         val pyqIndex = stringPreferencesKey("pyq_index_url")
+        val paperLinks = stringPreferencesKey("paper_links")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { p ->
@@ -60,6 +63,13 @@ class SettingsStore(private val context: Context) {
             exam = if (p[Keys.exam] == Exam.JEE_MAIN.name) Exam.JEE_MAIN else Exam.NEET,
             pyqIndexUrl = p[Keys.pyqIndex] ?: "",
         )
+    }
+
+    /** Links the user added to the Downloads screen (papers / question-bank zips). */
+    val paperLinks: Flow<List<PaperLink>> = context.settingsDataStore.data.map { PaperLinkCodec.decode(it[Keys.paperLinks]) }
+
+    suspend fun setPaperLinks(list: List<PaperLink>) {
+        context.settingsDataStore.edit { it[Keys.paperLinks] = PaperLinkCodec.encode(list) }
     }
 
     suspend fun setAppTheme(theme: AppTheme) {

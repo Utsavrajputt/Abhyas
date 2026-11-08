@@ -21,6 +21,11 @@ class AbhyasApp : Application() {
     val books: com.invictus.abhyas.data.ncert.BookRepository by lazy {
         com.invictus.abhyas.data.ncert.BookRepository(this, database, com.invictus.abhyas.data.pdf.PdfTextExtractor(this))
     }
+    /** A paper PDF downloaded from the Downloads screen, waiting for PDF Studio to ask for its import settings. */
+    val pendingPaper = kotlinx.coroutines.flow.MutableStateFlow<com.invictus.abhyas.data.pyq.PendingPaper?>(null)
+    val officialBooks: com.invictus.abhyas.data.ncert.OfficialBookDownloader by lazy {
+        com.invictus.abhyas.data.ncert.OfficialBookDownloader(this, books)
+    }
     val pyqRepository: com.invictus.abhyas.data.pyq.PyqRepository by lazy {
         com.invictus.abhyas.data.pyq.PyqRepository(this, packageReader, bankImporter)
     }

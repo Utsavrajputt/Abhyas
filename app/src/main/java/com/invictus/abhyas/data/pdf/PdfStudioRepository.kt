@@ -131,7 +131,7 @@ class PdfStudioRepository(
         }
     }
 
-    private fun displayName(uri: Uri): String? = try {
+    private fun displayName(uri: Uri): String? = if (uri.scheme == "file") uri.lastPathSegment else try {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         }

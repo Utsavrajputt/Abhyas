@@ -55,12 +55,13 @@ import com.invictus.abhyas.ui.screens.SectionTitle
 private val ZIP_TYPES = arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
 
 @Composable
-fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit = {}, onOpenPyq: () -> Unit = {}) {
+fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit = {}, onOpenPyq: () -> Unit = {}, onOpenBook: (String) -> Unit = {}) {
     val vm: LibraryViewModel = viewModel(factory = appViewModelFactory(app))
     val banks by vm.banks.collectAsState()
     val importState by vm.importState.collectAsState()
     val settings by app.settingsStore.settings.collectAsState(initial = UserSettings())
     val exam = settings.exam
+    val shelf by app.books.observeBooks().collectAsState(initial = emptyList())
     var pendingRemove by remember { mutableStateOf<BankEntity?>(null) }
 
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -76,10 +77,16 @@ fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit 
         topBarActions = {
             // Package icon: previous-year papers store (download packs).
             IconButton(shapes = IconButtonDefaults.shapes(), onClick = onOpenPyq) {
-                Icon(AppIcons.Package, contentDescription = "Previous year papers")
+                Icon(AppIcons.Package, contentDescription = "Downloads: books and previous year papers")
             }
         },
     ) {
+        SectionTitle("Books")
+        if (shelf.isEmpty()) {
+            BodyMuted("No books yet. Tap the package icon above to download NCERT Physics, Chemistry, Biology and Maths for Class 11 and 12.")
+        } else {
+            BookShelf(books = shelf, onOpenBook = onOpenBook)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = { zipPicker.launch(ZIP_TYPES) },

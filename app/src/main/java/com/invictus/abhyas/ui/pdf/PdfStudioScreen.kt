@@ -57,6 +57,16 @@ fun PdfStudioScreen(app: AbhyasApp, onOpenJob: (Long) -> Unit) {
     val adding by vm.adding.collectAsState()
     val message by vm.message.collectAsState()
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    var hint by remember { mutableStateOf<com.invictus.abhyas.data.pyq.PendingPaper?>(null) }
+    // A paper downloaded from Downloads > Previous papers > My links arrives here for its import settings.
+    val incoming by app.pendingPaper.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(incoming) {
+        incoming?.let {
+            hint = it
+            pendingUri = it.uri
+            app.pendingPaper.value = null
+        }
+    }
     var toDelete by remember { mutableStateOf<PdfJobEntity?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -99,8 +109,14 @@ fun PdfStudioScreen(app: AbhyasApp, onOpenJob: (Long) -> Unit) {
 
     pendingUri?.let { uri ->
         SetupDialog(
-            onDismiss = { pendingUri = null },
-            onConfirm = { cfg -> vm.add(uri, cfg); pendingUri = null },
+            initialYear = hint?.year?.toString() ?: "",
+            onDismiss = { pendingUri = null; hint = null },
+            onConfirm = { cfg ->
+                val h = hint
+                vm.add(uri, if (h != null) cfg.copy(title = h.title, bankId = h.bankId) else cfg)
+                pendingUri = null
+                hint = null
+            },
         )
     }
     toDelete?.let { job ->
@@ -152,12 +168,12 @@ private fun JobCard(job: PdfJobEntity, onOpen: () -> Unit, onCancel: () -> Unit,
 }
 
 @Composable
-private fun SetupDialog(onDismiss: () -> Unit, onConfirm: (PdfJobConfig) -> Unit) {
+private fun SetupDialog(initialYear: String, onDismiss: () -> Unit, onConfirm: (PdfJobConfig) -> Unit) {
     var exam by remember { mutableStateOf(0) }
     var cls by remember { mutableStateOf(2) }
     var subject by remember { mutableStateOf("Physics") }
     var chapter by remember { mutableStateOf("") }
-    var year by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf(initialYear) }
     var kind by remember { mutableStateOf(0) }
     var layout by remember { mutableStateOf(0) }
     var ncert by remember { mutableStateOf(false) }
