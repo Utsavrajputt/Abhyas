@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Settings
 import com.invictus.abhyas.AbhyasApp
+import com.invictus.abhyas.ui.ncert.NcertPracticeScreen
 import com.invictus.abhyas.ui.ncert.NcertScreen
 import com.invictus.abhyas.ui.ncert.ReaderScreen
 import com.invictus.abhyas.ui.pdf.PdfReportScreen
@@ -59,11 +60,11 @@ fun AbhyasRoot(app: AbhyasApp) {
 
     Scaffold(
         bottomBar = {
-            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup" || currentRoute == "pdfstudio" || currentRoute == "ncert"
+            val showBar = Tab.entries.any { it.route == currentRoute } || currentRoute == "browse" || currentRoute == "setup" || currentRoute == "pdfstudio" || currentRoute == "ncert" || currentRoute == "ncertpractice"
             if (showBar) ShortNavigationBar {
                 Tab.entries.forEach { tab ->
                     ShortNavigationBarItem(
-                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse") || (tab == Tab.Create && currentRoute == "pdfstudio") || (tab == Tab.Library && currentRoute == "ncert"),
+                        selected = currentRoute == tab.route || (tab == Tab.Library && currentRoute == "browse") || (tab == Tab.Create && currentRoute == "pdfstudio") || (tab == Tab.Library && currentRoute == "ncert") || (tab == Tab.Create && currentRoute == "ncertpractice"),
                         onClick = {
                             navController.navigate(tab.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -93,7 +94,12 @@ fun AbhyasRoot(app: AbhyasApp) {
             composable(Tab.Library.route) {
                 LibraryScreen(app, onBrowse = { navController.navigate("browse") }, onOpenNcert = { navController.navigate("ncert") })
             }
-            composable("ncert") { NcertScreen(app, onOpenBook = { navController.navigate("reader/$it") }) }
+            composable("ncert") {
+                NcertScreen(app, onOpenBook = { navController.navigate("reader/$it") }, onPractice = { navController.navigate("ncertpractice") })
+            }
+            composable("ncertpractice") {
+                NcertPracticeScreen(app, onStarted = { navController.navigate("session/$it") { popUpTo("ncertpractice") { inclusive = true } } })
+            }
             composable(
                 "reader/{bookId}?page={page}&para={para}",
                 arguments = listOf(
@@ -116,6 +122,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onCustomPractice = { navController.navigate("setup") },
                     onImportBank = { navController.navigate(Tab.Library.route) },
                     onImportPdf = { navController.navigate("pdfstudio") },
+                    onNcertPractice = { navController.navigate("ncertpractice") },
                 )
             }
             composable("pdfstudio") { PdfStudioScreen(app, onOpenJob = { navController.navigate("pdf/$it") }) }
@@ -148,7 +155,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onOpenSession = { navController.navigate("session/$it") },
                 )
             }
-            composable(Tab.Settings.route) { SettingsScreen(settingsStore) }
+            composable(Tab.Settings.route) { SettingsScreen(app) }
         }
     }
 }

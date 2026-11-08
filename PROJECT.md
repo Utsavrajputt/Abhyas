@@ -111,7 +111,17 @@ Rules for new screens:
 - [x] Reader: continuous pages, in-book search, bookmarks, tap a paragraph to save/highlight, per-chapter read progress, resume at last page
 - [x] Question -> NCERT reference (`ncertRef`: bookId, page, paragraph, textHash) in packages, DB and validator; shown on result review only when the passage is found again by hash, with "Open in book" deep link
 - [x] Room v4 + migration 3->4 + migration test; fix: M2 figure-crop line positions are now per line (were per word)
-- [ ] Part 2: AI (Gemini BYOK) + practice from NCERT (rule-based and AI-assisted), Part 3: polish
+- [x] Part 3 (polish): "Explain with AI" on reviewed questions, "Save to bank" for generated questions, palette/timer accessibility, AI unverified badge, CHANGELOG + README refresh, CI warns when unsigned on main, version 0.2.0
+- [ ] Left out on purpose: bank/book update checker; README screenshots (need a device build)
+
+### Build status (M3 Part 2: AI + practice from NCERT)
+- [x] Gemini BYOK over plain HTTPS (`generateContent`, key in `x-goog-api-key` header, never in a URL); `AiGateway` is the only door (switch + key check, one call at a time, 60 s cap, key scrubbed from messages)
+- [x] API key AES-GCM encrypted with an Android Keystore key; `ai_secure` excluded from backup and device transfer (`res/xml`); Settings: key, model presets + custom id, test connection
+- [x] Reader AI: Explain / Simplify / Ask on a tapped paragraph, Notes / Ask on the current page; every answer labelled as AI-written and unchecked
+- [x] Practice from NCERT (Create menu or NCERT Connect): fill-blank from defined terms and true/false from sentences (rule-based, scored), book Exercises (parsed with the M2 parser, never scored), assertion-reason (AI only, never scored); every question keeps an `ncertRef`
+- [x] Generated questions run as normal attempts (`AttemptRepository.startFromQuestions`); they are not in the bank tables, so they do not enter the mistake notebook
+- [x] Manifest: `INTERNET` permission (was missing, needed for index downloads and Gemini)
+- [ ] Needs a device run: Gemini call with a real key, Keystore on real hardware, quality of generated questions on real NCERT text, a full build
 
 ### Build status (M2)
 - [x] PDF pick via SAF, stored copy, source file name + page on every question
@@ -152,8 +162,8 @@ Rules for new screens:
 
 ### Acceptance checklist
 - [ ] Reader opens correct page + highlights passage from a question reference
-- [ ] AI disabled = zero network calls (test)
-- [ ] Generated questions validated and flagged unverified
+- [x] AI disabled = zero network calls (test) - `AiGatewayTest`
+- [x] Generated questions validated and flagged unverified - `AiDomainTest`
 - [ ] Signed release APK verified in CI, README complete
 
 ---

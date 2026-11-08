@@ -4,22 +4,30 @@ import androidx.room.withTransaction
 import com.invictus.abhyas.data.local.AbhyasDatabase
 import com.invictus.abhyas.data.local.AttemptEntity
 import com.invictus.abhyas.data.local.AttemptQuestionEntity
+import com.invictus.abhyas.data.local.BankEntity
 import com.invictus.abhyas.data.local.BookmarkEntity
+import com.invictus.abhyas.data.local.toEntity
 import com.invictus.abhyas.data.local.MistakeEntity
 import com.invictus.abhyas.domain.attempt.ExamTemplate
 import com.invictus.abhyas.domain.attempt.PracticeConfig
 import com.invictus.abhyas.domain.attempt.SummaryCalculator
 import com.invictus.abhyas.domain.engine.OptionShuffler
 import com.invictus.abhyas.domain.engine.ResponseCodec
+import com.invictus.abhyas.domain.model.BankKind
+import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.domain.model.Question
 import com.invictus.abhyas.domain.model.Response
 import com.invictus.abhyas.domain.model.Verdict
+import com.invictus.abhyas.domain.ncert.GeneratedBanks
 import com.invictus.abhyas.domain.pack.AbhyasJson
 import com.invictus.abhyas.domain.pack.QuestionFactory
 import com.invictus.abhyas.domain.query.KindFilter
 import com.invictus.abhyas.domain.query.QuestionFilter
 import kotlinx.coroutines.flow.Flow
 import kotlin.math.min
+
+/** Outcome of "Save to bank": new questions, ones already in the bank, and wrong answers added to the notebook. */
+data class SaveReport(val saved: Int, val alreadySaved: Int, val notebook: Int)
 
 sealed interface StartResult {
     data class Started(val attemptId: Long, val warnings: List<String>) : StartResult
@@ -80,6 +88,18 @@ class AttemptRepository(
         val endsAt = cfg.durationSec?.let { clock() + it * 1000L }
         val id = create(cfg.title, cfg.mode.name, "{}", null, endsAt, qs)
         return StartResult.Started(id, warnings)
+    }
+
+    /**
+     * Starts an attempt from questions that are not in the bank tables (made from NCERT text on the fly).
+     * The attempt snapshot is self-contained, so results and review work exactly like any other attempt.
+     */
+    suspend fun startFromQuestions(title: String, mode: String, questions: List<Question>, durationSec: Int? = null): StartResult {
+        if (dao.getInProgress() != null) return StartResult.Failed("Finish or submit your current test first.")
+        val qs = questions.distinctBy { it.id }.map { OptionShuffler.shuffle(it) }
+        if (qs.isEmpty()) return StartResult.Failed("There are no questions to practise.")
+        val endsAt = durationSec?.let { clock() + it * 1000L }
+        return StartResult.Started(create(title, mode, "{}", null, endsAt, qs), emptyList())
     }
 
     suspend fun startTemplate(t: ExamTemplate): StartResult {
@@ -215,6 +235,55 @@ class AttemptRepository(
         if (on) db.bookmarkDao().add(BookmarkEntity(questionId, clock())) else db.bookmarkDao().remove(questionId)
     }
 
+    // ---- saving generated questions ----
+
+    /** How many questions of this attempt were made on the fly and are not in the bank yet. */
+    suspend fun unsavedGeneratedCount(id: Long): Int = dao.getQuestions(id).count { row ->
+        val q = runCatching { QuestionFactory.fromSnapshotJson(row.snapshotJson) }.getOrNull()
+        q != null && GeneratedBanks.isGenerated(q) && db.questionDao().getById(q.id) == null
+    }
+
+    /**
+     * Moves the attempt's generated questions into the saved-practice bank (one transaction) and puts the ones
+     * answered wrongly into the mistake notebook. Idempotent: running it twice saves nothing new.
+     */
+    suspend fun saveGeneratedToBank(id: Long): SaveReport = db.withTransaction {
+        val now = clock()
+        var saved = 0
+        var already = 0
+        var notebook = 0
+        for (row in dao.getQuestions(id)) {
+            val q = runCatching { QuestionFactory.fromSnapshotJson(row.snapshotJson) }.getOrNull() ?: continue
+            if (!GeneratedBanks.isGenerated(q)) continue
+            val inserted = db.questionDao().insertAll(listOf(GeneratedBanks.forSaving(q).toEntity())).firstOrNull() ?: -1L
+            if (inserted != -1L) saved++ else already++
+            // Same id already in the bank (or same content under another id) still counts as present.
+            val present = db.questionDao().getById(q.id) != null
+            if (present && row.verdict == Verdict.WRONG.name && db.mistakeDao().get(q.id) == null) {
+                db.mistakeDao().upsert(MistakeEntity(q.id, 1, now, id, resolved = false))
+                notebook++
+            }
+        }
+        val count = db.questionDao().countByBank(GeneratedBanks.PRACTICE_BANK)
+        if (count > 0) {
+            db.bankDao().upsert(
+                BankEntity(
+                    id = GeneratedBanks.PRACTICE_BANK,
+                    title = GeneratedBanks.PRACTICE_TITLE,
+                    version = 1,
+                    exam = Exam.NEET.name,
+                    classLevel = null,
+                    subject = "Mixed",
+                    kind = BankKind.MIXED.name,
+                    checksum = "local",
+                    questionCount = count,
+                    installedAt = now,
+                ),
+            )
+        }
+        SaveReport(saved, already, notebook)
+    }
+
     // ---- finishing ----
 
     /** Scores the attempt and updates the mistake notebook. Idempotent. Returns null if the attempt is gone. */
@@ -235,7 +304,9 @@ class AttemptRepository(
         scorable.forEachIndexed { i, (row, q) ->
             val s = summary.perQuestion[i]
             dao.updateQuestion(row.copy(verdict = s.verdict.name, marksAwarded = s.marks))
-            val existing = db.mistakeDao().get(q!!.id)
+            // Questions made on the fly from NCERT text are not in the bank tables: no notebook entry for them.
+            if (db.questionDao().getById(q!!.id) == null) return@forEachIndexed
+            val existing = db.mistakeDao().get(q.id)
             when (s.verdict) {
                 Verdict.WRONG -> db.mistakeDao().upsert(
                     MistakeEntity(q.id, (existing?.wrongCount ?: 0) + 1, now, id, resolved = false),

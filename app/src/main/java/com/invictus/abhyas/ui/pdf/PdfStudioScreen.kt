@@ -81,7 +81,7 @@ fun PdfStudioScreen(app: AbhyasApp, onOpenJob: (Long) -> Unit) {
             jobs == null || adding -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                 LoadingIndicator(modifier = Modifier.size(64.dp))
             }
-            jobs!!.isEmpty() -> BodyMuted("No PDFs yet.")
+            jobs!!.isEmpty() -> BodyMuted("No PDFs yet. Tap Choose a PDF to read a question paper or chapter; you review every question before anything is imported.")
             else -> {
                 SectionTitle("Your PDFs")
                 jobs!!.forEach { job ->

@@ -37,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.OutlinedButton
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.abhyas.AbhyasApp
@@ -66,6 +68,7 @@ fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit, onOpenNcer
         viewModel(key = "result$attemptId", factory = resultViewModelFactory(app, attemptId))
     val ui by vm.ui.collectAsState()
     val bookmarked by vm.bookmarkedIds.collectAsState()
+    val save by vm.save.collectAsState()
     val a = ui.attempt
 
     var dim by remember { mutableStateOf(Dimension.SUBJECT) }
@@ -119,6 +122,15 @@ fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit, onOpenNcer
                     "Avg ${fmtDuration(overall.avgTimeMs)} per question" +
                         if (a.unscoredCount > 0) " - ${a.unscoredCount} unscored (no verified answer)" else "",
                 )
+                if (save.unsaved > 0) {
+                    OutlinedButton(
+                        onClick = vm::saveToBank,
+                        enabled = !save.busy,
+                        shapes = ButtonDefaults.shapes(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Save ${save.unsaved} question${if (save.unsaved == 1) "" else "s"} to my bank") }
+                }
+                save.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
                 Button(onClick = onDone, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Done") }
             }
         }
@@ -167,8 +179,14 @@ private fun ReviewCard(app: AbhyasApp, r: ReviewItem, bookmarked: Boolean, onBoo
         Verdict.UNATTEMPTED -> "Not attempted"
         Verdict.UNSCORED -> "Unscored (no verified answer)"
     }
+    val aiReady by app.aiGateway.ready.collectAsState(initial = false)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var aiRequest by remember { mutableStateOf<com.invictus.abhyas.ui.ai.AiRequestUi?>(null) }
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if ("ai-generated" in q.tags) {
+                Text("AI-written - unverified, not scored", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Q${r.position + 1} - $verdictText (${if (r.marks > 0) "+" else ""}${fmtMarks(r.marks)}) - ${fmtDuration(r.timeSpentMs)}",
@@ -198,6 +216,26 @@ private fun ReviewCard(app: AbhyasApp, r: ReviewItem, bookmarked: Boolean, onBoo
                 MathText(it)
             }
             com.invictus.abhyas.ui.ncert.NcertRefCard(app, q.ncertRef, onOpenNcert)
+            if (aiReady) {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        scope.launch {
+                            // Ground the answer in the book when the reference still resolves.
+                            val passage = q.ncertRef?.let { app.books.resolve(it)?.text }
+                            aiRequest = com.invictus.abhyas.ui.ai.AiRequestUi(
+                                feature = com.invictus.abhyas.domain.ai.AiFeature.EXPLAIN,
+                                context = passage.orEmpty(),
+                                title = "Q${r.position + 1}",
+                                prompt = com.invictus.abhyas.domain.ai.AiPrompts.explainAnswer(
+                                    q, AnswerFormatter.given(q, r.response), AnswerFormatter.correct(q), passage,
+                                ),
+                            )
+                        }
+                    },
+                    shapes = ButtonDefaults.shapes(),
+                ) { Text("Explain with AI") }
+            }
         }
     }
+    aiRequest?.let { com.invictus.abhyas.ui.ai.AiSheet(app, it, onDismiss = { aiRequest = null }) }
 }

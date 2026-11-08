@@ -1,0 +1,29 @@
+# Changelog
+
+All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradle.kts`.
+
+## [0.2.0] - Milestone 3 (NCERT Connect, optional AI, polish)
+
+### Added
+- NCERT Connect: add book PDFs from the phone or a hosted HTTPS index (resumable, SHA-256 verified), background text index, reader with search, bookmarks, saved passages and per-chapter progress.
+- Question to NCERT references (`ncertRef`) shown only when the passage is found again by its hash, with an "Open in book" link.
+- Optional AI (off by default) with your own Gemini API key: Explain / Simplify / Ask on a paragraph, Notes / Ask on a page, "Explain with AI" on a reviewed question (grounded in the book passage when available).
+- Practice from NCERT: fill-in-the-blank and true/false made from the book text by rules (scored), book exercises (not scored), AI assertion-reason (not scored).
+- "Save to bank" on the result screen: keeps generated questions in "NCERT practice (saved)" so bookmarks, the mistake notebook and retry work for them. Never automatic.
+- Accessibility: question palette cells and the timer are announced with their state.
+- `AI-written - unverified, not scored` badge on AI questions in practice and review.
+- Unit tests for the AI gateway (AI off or no key means no provider call), Gemini request/response handling, prompts, generators and parsers.
+- CI warns on `main` when APKs are not signed.
+
+### Security and privacy
+- API key is AES-GCM encrypted with an Android Keystore key and excluded from backup and device transfer. The key goes in a request header, never in a URL, and is scrubbed from error messages.
+- `INTERNET` permission added (book downloads from an index and the optional Gemini calls). With AI off, no AI request is ever made.
+
+### Changed
+- Room schema v4 (migration 3 to 4 added in Part 1).
+
+## [0.1.0] - Milestones 0 to 2
+- Foundation: Material 3 Expressive shell, Room, DataStore settings, CI with `apksigner` signing.
+- Question engine: validated models, bank packages (manifest + checksum), scoring, option shuffle, dedupe by content hash.
+- Practice and exam modes, timed attempts that survive process death, results with breakdowns, progress, mistake notebook and bookmarks.
+- PDF Studio: digital extraction and offline OCR, deterministic parsers, review screen, import and export as a package.

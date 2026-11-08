@@ -22,4 +22,6 @@ class AbhyasApp : Application() {
         com.invictus.abhyas.data.ncert.BookRepository(this, database, com.invictus.abhyas.data.pdf.PdfTextExtractor(this))
     }
     val settingsStore: SettingsStore by lazy { SettingsStore(this) }
+    val apiKeyStore: com.invictus.abhyas.data.ai.ApiKeyStore by lazy { com.invictus.abhyas.data.ai.ApiKeyStore(this) }
+    val aiGateway: com.invictus.abhyas.data.ai.AiGateway by lazy { com.invictus.abhyas.data.ai.AiGateway(settingsStore, apiKeyStore) }
 }

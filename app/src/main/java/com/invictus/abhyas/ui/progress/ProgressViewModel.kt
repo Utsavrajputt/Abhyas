@@ -33,6 +33,8 @@ class ProgressViewModel(private val app: AbhyasApp) : ViewModel() {
     fun deleteAttempt(id: Long) { viewModelScope.launch { app.attemptRepository.deleteAttempt(id) } }
 }
 
+data class SaveUi(val unsaved: Int = 0, val busy: Boolean = false, val message: String? = null)
+
 data class ResultUi(
     val loading: Boolean = true,
     val attempt: AttemptEntity? = null,
@@ -52,6 +54,9 @@ class ResultViewModel(private val app: AbhyasApp, private val id: Long) : ViewMo
         .map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    private val _save = MutableStateFlow(SaveUi())
+    val save: StateFlow<SaveUi> = _save
+
     init {
         viewModelScope.launch {
             val repo = app.attemptRepository
@@ -61,6 +66,28 @@ class ResultViewModel(private val app: AbhyasApp, private val id: Long) : ViewMo
                 stats = repo.statRows(id),
                 review = repo.loadReview(id),
             )
+            _save.value = SaveUi(unsaved = repo.unsavedGeneratedCount(id))
+        }
+    }
+
+    /** Explicit, never automatic: the student chooses to keep generated questions. */
+    fun saveToBank() {
+        if (_save.value.busy) return
+        _save.value = _save.value.copy(busy = true, message = null)
+        viewModelScope.launch {
+            val msg = try {
+                val r = app.attemptRepository.saveGeneratedToBank(id)
+                buildString {
+                    append("Saved ${r.saved} question${if (r.saved == 1) "" else "s"} to \"NCERT practice (saved)\".")
+                    if (r.alreadySaved > 0) append(" ${r.alreadySaved} were already there.")
+                    if (r.notebook > 0) append(" ${r.notebook} wrong answer${if (r.notebook == 1) "" else "s"} added to your mistakes.")
+                }
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                "Could not save: ${e.message ?: "unknown error"}"
+            }
+            _save.value = SaveUi(unsaved = app.attemptRepository.unsavedGeneratedCount(id), busy = false, message = msg)
         }
     }
 

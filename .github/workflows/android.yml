@@ -108,6 +108,23 @@ jobs:
             done
           fi
 
+      - name: Require signed APKs on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          signed=(app/build/outputs/apk/signed/*.apk)
+          real=()
+          for apk in "${signed[@]}"; do
+            [[ "$apk" == *-unsigned.apk ]] || real+=("$apk")
+          done
+          if [[ ${#real[@]} -lt 2 ]]; then
+            echo "::warning title=Release APKs are not signed::Set KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD so pushes to main produce signed APKs."
+          else
+            echo "Signed and verified: ${real[*]}"
+          fi
+
       - name: Upload Abhyas-arm64-v8a
         uses: actions/upload-artifact@v4
         with:

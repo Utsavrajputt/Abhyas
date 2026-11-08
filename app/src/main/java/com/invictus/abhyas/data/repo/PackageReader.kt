@@ -12,7 +12,7 @@ import java.io.IOException
 /** Reads a package from a SAF zip/folder or from app assets (debug demo bank). Blocking: call on IO. */
 class PackageReader(private val context: Context) {
 
-    /** [stagingDir] receives `images/*` found in the zip (so the importer can copy them after parsing). */
+    /** [stagingDir] receives the `images/` folder found in the zip (so the importer can copy them after parsing). */
     fun readZip(uri: Uri, stagingDir: File? = null): PackageFiles {
         val stream = context.contentResolver.openInputStream(uri)
             ?: throw PackageReadException("Cannot open the selected file")

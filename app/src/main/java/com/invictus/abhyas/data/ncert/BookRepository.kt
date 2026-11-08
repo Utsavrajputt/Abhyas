@@ -77,6 +77,8 @@ class BookRepository(
     fun observeRead(id: String) = dao.observeRead(id)
     suspend fun book(id: String) = dao.getBook(id)
     suspend fun passages(id: String, page: Int) = dao.passagesOnPage(id, page)
+    suspend fun passagesInRange(id: String, from: Int, to: Int) = dao.passagesInRange(id, from, to)
+    suspend fun chapters(id: String) = dao.chapters(id)
 
     // ------------------------------------------------------------------------------------------
     // Adding books

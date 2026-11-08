@@ -66,6 +66,9 @@ interface BookDao {
     @Query("SELECT * FROM passages WHERE bookId = :bookId AND idx < 3 ORDER BY page, idx")
     suspend fun pageHeads(bookId: String): List<PassageEntity>
 
+    @Query("SELECT * FROM passages WHERE bookId = :bookId AND page BETWEEN :from AND :to ORDER BY page, idx")
+    suspend fun passagesInRange(bookId: String, from: Int, to: Int): List<PassageEntity>
+
     @Query("SELECT * FROM passages WHERE bookId = :bookId AND page = :page AND idx = :idx")
     suspend fun passage(bookId: String, page: Int, idx: Int): PassageEntity?
 

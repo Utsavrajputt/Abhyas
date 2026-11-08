@@ -52,6 +52,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -132,6 +136,9 @@ fun SessionScreen(app: AbhyasApp, attemptId: Long, onFinished: () -> Unit, onExi
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                if ("ai-generated" in item.question.tags) {
+                    Text("AI-written - unverified, not scored", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+                }
                 MathText(item.question.statement, style = MaterialTheme.typography.titleMedium)
                 QuestionImage(item.question.imagePath)
                 if (item.question.type == QuestionType.IMAGE && item.question.imagePath.isNullOrBlank()) {
@@ -236,7 +243,8 @@ private fun TimerBadge(ms: Long) {
         Modifier
             .clip(MaterialShapes.Pill.toShape())
             .background(if (low) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .semantics { contentDescription = "Time left: " + (if (h > 0) "$h hours, " else "") + "$m minutes, $s seconds" },
     ) {
         Text(
             text,
@@ -244,6 +252,14 @@ private fun TimerBadge(ms: Long) {
             color = if (low) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }
+}
+
+private fun statusText(s: PaletteStatus): String = when (s) {
+    PaletteStatus.NOT_VISITED -> "not visited"
+    PaletteStatus.NOT_ANSWERED -> "not answered"
+    PaletteStatus.ANSWERED -> "answered"
+    PaletteStatus.MARKED -> "marked for review"
+    PaletteStatus.ANSWERED_MARKED -> "answered and marked for review"
 }
 
 @Composable
@@ -274,7 +290,12 @@ private fun Palette(items: List<SessionItem>, current: Int, onPick: (Int) -> Uni
                         .clip(shape)
                         .background(bg)
                         .then(if (i == current) Modifier.border(2.dp, cs.primary, shape) else Modifier)
-                        .clickable { onPick(i) },
+                        .semantics {
+                            // TalkBack reads the state, not just the number; colour and shape are never the only cue.
+                            contentDescription = "Question ${i + 1}, ${statusText(status)}" + if (i == current) ", current" else ""
+                            selected = i == current
+                        }
+                        .clickable(onClickLabel = "Go to question ${i + 1}", role = Role.Button) { onPick(i) },
                     contentAlignment = Alignment.Center,
                 ) { Text("${i + 1}", color = fg, style = MaterialTheme.typography.labelLarge) }
             }

@@ -17,6 +17,8 @@ data class UserSettings(
     val dynamicColor: Boolean = true,
     /** AI is optional and OFF by default; the app never needs it. */
     val aiEnabled: Boolean = false,
+    /** Gemini model id used for AI features. */
+    val aiModel: String = "gemini-2.5-flash",
     /** HTTPS URL of a hosted NCERT book index (optional; empty = not set). */
     val ncertIndexUrl: String = "",
 )
@@ -26,6 +28,7 @@ class SettingsStore(private val context: Context) {
         val theme = stringPreferencesKey("theme_mode")
         val dynamic = booleanPreferencesKey("dynamic_color")
         val ai = booleanPreferencesKey("ai_enabled")
+        val aiModel = stringPreferencesKey("ai_model")
         val ncertIndex = stringPreferencesKey("ncert_index_url")
     }
 
@@ -35,6 +38,7 @@ class SettingsStore(private val context: Context) {
                 ?: ThemeMode.SYSTEM,
             dynamicColor = p[Keys.dynamic] ?: true,
             aiEnabled = p[Keys.ai] ?: false,
+            aiModel = p[Keys.aiModel]?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash",
             ncertIndexUrl = p[Keys.ncertIndex] ?: "",
         )
     }
@@ -49,6 +53,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setAiEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.ai] = enabled }
+    }
+
+    suspend fun setAiModel(model: String) {
+        context.settingsDataStore.edit { it[Keys.aiModel] = model.trim() }
     }
 
     suspend fun setNcertIndexUrl(url: String) {

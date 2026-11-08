@@ -47,7 +47,7 @@ import com.invictus.abhyas.ui.screens.ExpressiveScreen
 import com.invictus.abhyas.ui.screens.SectionTitle
 
 @Composable
-fun NcertScreen(app: AbhyasApp, onOpenBook: (String) -> Unit) {
+fun NcertScreen(app: AbhyasApp, onOpenBook: (String) -> Unit, onPractice: () -> Unit = {}) {
     val vm: NcertViewModel = viewModel(factory = ncertFactory(app))
     val books by vm.books.collectAsState()
     val message by vm.message.collectAsState()
@@ -62,6 +62,7 @@ fun NcertScreen(app: AbhyasApp, onOpenBook: (String) -> Unit) {
             Button(onClick = { picker.launch(arrayOf("application/pdf")) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Add PDF") }
             FilledTonalButton(onClick = { indexDialog = true; vm.resetIndex() }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("From index") }
         }
+        FilledTonalButton(onClick = onPractice, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Practice from your books") }
         BodyMuted("Use books you are allowed to keep. NCERT publishes free PDFs; downloads from an index are checked against the checksum it lists.")
         message?.let {
             Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)

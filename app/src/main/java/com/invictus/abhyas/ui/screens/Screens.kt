@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Tune
@@ -261,11 +262,11 @@ fun HomeScreen(app: AbhyasApp, onOpenSession: (Long) -> Unit, onImportBank: () -
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImportPdf: () -> Unit) {
+fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImportPdf: () -> Unit, onNcertPractice: () -> Unit = {}) {
     var expanded by remember { mutableStateOf(false) }
     ExpressiveScreen(
         title = "Create",
-        subtitle = "Custom practice, PDF Studio",
+        subtitle = "Custom practice, NCERT practice, PDF Studio",
         floatingActionButton = {
             FloatingActionButtonMenu(
                 expanded = expanded,
@@ -287,6 +288,11 @@ fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImpor
                     text = { Text("Custom practice") },
                 )
                 FloatingActionButtonMenuItem(
+                    onClick = { expanded = false; onNcertPractice() },
+                    icon = { Icon(Icons.Outlined.MenuBook, contentDescription = null) },
+                    text = { Text("Practice from NCERT") },
+                )
+                FloatingActionButtonMenuItem(
                     onClick = { expanded = false; onImportPdf() },
                     icon = { Icon(Icons.Outlined.PictureAsPdf, contentDescription = null) },
                     text = { Text("Import PDF") },
@@ -302,6 +308,7 @@ fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImpor
         SectionTitle("What you can create")
         BodyMuted("Custom practice sessions, PDF imports and question-bank imports. Use the + button to start.")
         BodyMuted("PDF Studio reads digital and scanned PDFs, finds questions and answers, and lets you review before importing.")
+        BodyMuted("Practice from NCERT makes fill-in-the-blank and true/false questions from your books, and can add book exercises and AI assertion-reason questions.")
     }
 }
 
@@ -310,7 +317,8 @@ fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImpor
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun SettingsScreen(store: SettingsStore) {
+fun SettingsScreen(app: com.invictus.abhyas.AbhyasApp) {
+    val store = app.settingsStore
     val settings by store.settings.collectAsState(initial = UserSettings())
     val scope = rememberCoroutineScope()
     val modes = ThemeMode.entries
@@ -334,6 +342,7 @@ fun SettingsScreen(store: SettingsStore) {
             description = "Off by default. Practice, scoring and reading never need AI. AI content is always shown as unverified.",
             checked = settings.aiEnabled,
         ) { scope.launch { store.setAiEnabled(it) } }
+        if (settings.aiEnabled) com.invictus.abhyas.ui.ai.AiSettingsSection(app, settings.aiModel)
     }
 }
 

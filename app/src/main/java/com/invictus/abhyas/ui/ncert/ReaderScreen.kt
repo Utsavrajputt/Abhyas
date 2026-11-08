@@ -25,10 +25,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -66,6 +69,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.local.PassageEntity
+import com.invictus.abhyas.domain.ai.AiFeature
+import com.invictus.abhyas.ui.ai.AiRequestUi
+import com.invictus.abhyas.ui.ai.AiSheet
 import com.invictus.abhyas.ui.screens.BodyMuted
 import com.invictus.abhyas.ui.screens.ConnectedToggleGroup
 import kotlinx.coroutines.FlowPreview
@@ -85,6 +91,9 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     var contents by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
     var picked by remember { mutableStateOf<PassageEntity?>(null) }
+    var aiRequest by remember { mutableStateOf<AiRequestUi?>(null) }
+    var aiMenu by remember { mutableStateOf(false) }
+    val aiReady by app.aiGateway.ready.collectAsState(initial = false)
     var initialized by remember { mutableStateOf(false) }
     val pageCount = book?.pageCount ?: 0
     val current = (listState.firstVisibleItemIndex + 1).coerceIn(1, pageCount.coerceAtLeast(1))
@@ -127,6 +136,33 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
                     Text(book?.title ?: "", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     BodyMuted("Page $current of $pageCount")
                 }
+                if (aiReady) {
+                    Box {
+                        IconButton(onClick = { aiMenu = true }) { Icon(Icons.Outlined.AutoAwesome, contentDescription = "AI tools for this page") }
+                        DropdownMenu(expanded = aiMenu, onDismissRequest = { aiMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Notes for this page") },
+                                onClick = {
+                                    aiMenu = false
+                                    scope.launch {
+                                        val text = vm.passages(current).joinToString("\n\n") { it.text }
+                                        aiRequest = AiRequestUi(AiFeature.NOTES, text, "Page $current")
+                                    }
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Ask about this page") },
+                                onClick = {
+                                    aiMenu = false
+                                    scope.launch {
+                                        val text = vm.passages(current).joinToString("\n\n") { it.text }
+                                        aiRequest = AiRequestUi(AiFeature.ASK, text, "Page $current")
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
                 IconButton(onClick = { searching = true }) { Icon(Icons.Outlined.Search, contentDescription = "Search in book") }
                 val marked = bookmarks.any { it.page == current }
                 IconButton(onClick = { vm.setBookmark(current, !marked) }) {
@@ -149,11 +185,23 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
 
     if (contents) ContentsSheet(vm, onDismiss = { contents = false }) { page, para -> contents = false; jump(page, para) }
     if (searching) SearchDialog(vm, onDismiss = { searching = false }) { page, para -> searching = false; jump(page, para) }
+    aiRequest?.let { r -> AiSheet(app, r, onDismiss = { aiRequest = null }) }
     picked?.let { p ->
         AlertDialog(
             onDismissRequest = { picked = null },
             title = { Text("Page ${p.page}") },
-            text = { Text(p.text, style = MaterialTheme.typography.bodyMedium) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(p.text, style = MaterialTheme.typography.bodyMedium)
+                    if (aiReady) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = { aiRequest = AiRequestUi(AiFeature.EXPLAIN, p.text, "Page ${p.page}"); picked = null }) { Text("Explain") }
+                            TextButton(onClick = { aiRequest = AiRequestUi(AiFeature.SIMPLIFY, p.text, "Page ${p.page}"); picked = null }) { Text("Simplify") }
+                            TextButton(onClick = { aiRequest = AiRequestUi(AiFeature.ASK, p.text, "Page ${p.page}"); picked = null }) { Text("Ask") }
+                        }
+                    }
+                }
+            },
             confirmButton = { TextButton(onClick = { vm.savePassage(p); picked = null }) { Text("Save passage") } },
             dismissButton = {
                 Row {
