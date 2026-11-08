@@ -43,6 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.local.BankEntity
+import com.invictus.abhyas.data.prefs.UserSettings
+import com.invictus.abhyas.ui.icons.AppIcons
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import com.invictus.abhyas.ui.screens.BodyMuted
 import com.invictus.abhyas.ui.screens.ConnectedToggleGroup
 import com.invictus.abhyas.ui.screens.ExpressiveScreen
@@ -51,11 +55,12 @@ import com.invictus.abhyas.ui.screens.SectionTitle
 private val ZIP_TYPES = arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
 
 @Composable
-fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit = {}) {
+fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit = {}, onOpenPyq: () -> Unit = {}) {
     val vm: LibraryViewModel = viewModel(factory = appViewModelFactory(app))
     val banks by vm.banks.collectAsState()
     val importState by vm.importState.collectAsState()
-    var examFilter by remember { mutableStateOf(0) }
+    val settings by app.settingsStore.settings.collectAsState(initial = UserSettings())
+    val exam = settings.exam
     var pendingRemove by remember { mutableStateOf<BankEntity?>(null) }
 
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -65,7 +70,16 @@ fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit 
         if (uri != null) vm.importFolder(uri)
     }
 
-    ExpressiveScreen("Library", "Question banks, offline") {
+    ExpressiveScreen(
+        "Library",
+        "${exam.name.replace('_', ' ')} question banks, offline",
+        topBarActions = {
+            // Package icon: previous-year papers store (download packs).
+            IconButton(shapes = IconButtonDefaults.shapes(), onClick = onOpenPyq) {
+                Icon(AppIcons.Package, contentDescription = "Previous year papers")
+            }
+        },
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = { zipPicker.launch(ZIP_TYPES) },
@@ -109,12 +123,7 @@ fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit 
             list.isEmpty() -> EmptyLibrary()
 
             else -> {
-                ConnectedToggleGroup(listOf("All", "NEET", "JEE Main"), examFilter) { examFilter = it }
-                val shown = when (examFilter) {
-                    1 -> list.filter { it.exam == "NEET" }
-                    2 -> list.filter { it.exam == "JEE_MAIN" }
-                    else -> list
-                }
+                val shown = list.filter { it.exam == exam.name }
                 FilledTonalButton(
                     onClick = onBrowse,
                     shapes = ButtonDefaults.shapes(),
@@ -124,7 +133,7 @@ fun LibraryScreen(app: AbhyasApp, onBrowse: () -> Unit, onOpenNcert: () -> Unit 
                     Text("  Browse and search questions")
                 }
                 SectionTitle("Installed banks")
-                if (shown.isEmpty()) BodyMuted("No banks for this exam.")
+                if (shown.isEmpty()) BodyMuted("No banks for ${exam.name.replace('_', ' ')} yet. Import one, or get previous-year papers with the package icon above.")
                 shown.forEach { bank ->
                     BankCard(
                         bank = bank,

@@ -103,7 +103,11 @@ val LocalShellActions = compositionLocalOf<ShellActions?> { null }
  * circular reveal as the theme picker, starting at the tapped spot.
  */
 @Composable
-fun MainTopBar(title: String, modifier: Modifier = Modifier) {
+fun MainTopBar(
+    title: String,
+    modifier: Modifier = Modifier,
+    extraActions: @Composable RowScope.() -> Unit = {},
+) {
     val shell = LocalShellActions.current
     val themeTransition = LocalThemeTransitionState.current
     val scope = rememberCoroutineScope()
@@ -137,6 +141,7 @@ fun MainTopBar(title: String, modifier: Modifier = Modifier) {
             )
         },
         actions = {
+            extraActions()
             if (shell != null) {
                 IconButton(
                     shapes = IconButtonDefaults.shapes(),

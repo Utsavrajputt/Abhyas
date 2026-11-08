@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -30,6 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +65,10 @@ fun FloatingNavigation(
     tabs: List<PillTab>,
     selectedIndex: Int?,
     onTabSelected: (Int) -> Unit,
-    onCreate: () -> Unit,
+    onCustomPractice: () -> Unit,
+    onNcertPractice: () -> Unit,
+    onImportPdf: () -> Unit,
+    onImportBank: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -78,7 +85,12 @@ fun FloatingNavigation(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PillNavigationBar(tabs = tabs, selectedIndex = selectedIndex, onTabSelected = onTabSelected)
-            CreateButton(onClick = onCreate)
+            CreateMenuButton(
+                onCustomPractice = onCustomPractice,
+                onNcertPractice = onNcertPractice,
+                onImportPdf = onImportPdf,
+                onImportBank = onImportBank,
+            )
         }
     }
 }
@@ -208,24 +220,52 @@ private fun PillNavigationBar(
     }
 }
 
+/** Round + button; tapping it opens the create options right here instead of a separate screen. */
 @Composable
-private fun CreateButton(onClick: () -> Unit) {
-    FilledIconButton(
-        onClick = onClick,
-        shapes = IconButtonDefaults.shapes(),
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-        modifier = Modifier
-            .size(56.dp)
-            .shadow(8.dp, CircleShape),
-    ) {
-        Icon(
-            imageVector = AppIcons.Add,
-            contentDescription = "Create",
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(26.dp),
-        )
+private fun CreateMenuButton(
+    onCustomPractice: () -> Unit,
+    onNcertPractice: () -> Unit,
+    onImportPdf: () -> Unit,
+    onImportBank: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    Box {
+        FilledIconButton(
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                expanded = true
+            },
+            shapes = IconButtonDefaults.shapes(),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            modifier = Modifier
+                .size(56.dp)
+                .shadow(8.dp, CircleShape),
+        ) {
+            Icon(
+                imageVector = AppIcons.Add,
+                contentDescription = "Create",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(26.dp),
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            CreateMenuItem("Custom practice", AppIcons.Tune) { expanded = false; onCustomPractice() }
+            CreateMenuItem("Practice from NCERT", AppIcons.MenuBook) { expanded = false; onNcertPractice() }
+            CreateMenuItem("Import PDF", AppIcons.Pdf) { expanded = false; onImportPdf() }
+            CreateMenuItem("Import question bank", AppIcons.FileOpen) { expanded = false; onImportBank() }
+        }
     }
+}
+
+@Composable
+private fun CreateMenuItem(text: String, icon: ImageVector, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(text) },
+        leadingIcon = { Icon(imageVector = icon, contentDescription = null) },
+        onClick = onClick,
+    )
 }

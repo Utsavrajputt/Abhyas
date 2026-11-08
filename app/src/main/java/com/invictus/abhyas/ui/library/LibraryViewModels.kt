@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -33,6 +34,7 @@ import kotlin.coroutines.cancellation.CancellationException
 fun appViewModelFactory(app: AbhyasApp) = viewModelFactory {
     initializer { LibraryViewModel(app) }
     initializer { BrowseViewModel(app) }
+    initializer { com.invictus.abhyas.ui.pyq.PyqViewModel(app) }
     initializer { com.invictus.abhyas.ui.progress.ProgressViewModel(app) }
 }
 
@@ -114,6 +116,14 @@ class BrowseViewModel(app: AbhyasApp) : ViewModel() {
     private val dao = app.database.questionDao()
 
     val filter = MutableStateFlow(QuestionFilter())
+
+    init {
+        // Start from the app-wide exam (Settings > Exam); the "All" toggle still widens it.
+        viewModelScope.launch {
+            val exam = app.settingsStore.settings.first().exam
+            filter.value = filter.value.copy(exam = exam)
+        }
+    }
 
     fun update(transform: (QuestionFilter) -> QuestionFilter) { filter.value = transform(filter.value) }
 

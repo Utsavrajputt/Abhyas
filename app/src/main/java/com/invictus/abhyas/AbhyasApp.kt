@@ -21,6 +21,9 @@ class AbhyasApp : Application() {
     val books: com.invictus.abhyas.data.ncert.BookRepository by lazy {
         com.invictus.abhyas.data.ncert.BookRepository(this, database, com.invictus.abhyas.data.pdf.PdfTextExtractor(this))
     }
+    val pyqRepository: com.invictus.abhyas.data.pyq.PyqRepository by lazy {
+        com.invictus.abhyas.data.pyq.PyqRepository(this, packageReader, bankImporter)
+    }
     val settingsStore: SettingsStore by lazy { SettingsStore(this) }
     val apiKeyStore: com.invictus.abhyas.data.ai.ApiKeyStore by lazy { com.invictus.abhyas.data.ai.ApiKeyStore(this) }
     val aiGateway: com.invictus.abhyas.data.ai.AiGateway by lazy { com.invictus.abhyas.data.ai.AiGateway(settingsStore, apiKeyStore) }

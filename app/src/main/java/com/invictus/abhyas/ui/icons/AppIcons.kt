@@ -28,4 +28,12 @@ object AppIcons {
     val Settings: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Settings }
     val AutoAwesome: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Auto_awesome }
     val Database: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Database }
+    val Package: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Inventory_2 }
+    val Play: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Play_arrow }
+    val School: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.School }
+    val Tune: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Tune }
+    val MenuBook: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Menu_book }
+    val Pdf: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Picture_as_pdf }
+    val FileOpen: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.File_open }
+    val Download: ImageVector by lazy(LazyThreadSafetyMode.NONE) { MaterialSymbols.RoundedFilled.Download }
 }

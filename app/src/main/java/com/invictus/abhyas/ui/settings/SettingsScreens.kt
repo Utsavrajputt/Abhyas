@@ -34,6 +34,7 @@ import com.invictus.abhyas.ui.components.AbhyasTopBar
 import com.invictus.abhyas.ui.components.BackNavigationIcon
 import com.invictus.abhyas.ui.icons.AppIcons
 import com.invictus.abhyas.ui.screens.BodyMuted
+import com.invictus.abhyas.ui.screens.ExamPicker
 import kotlinx.coroutines.launch
 
 /** Header + body frame shared by every Settings sub-screen (xmd-style flat top bar with a back arrow). */
@@ -60,6 +61,7 @@ fun SettingsScaffold(
 @Composable
 fun SettingsRootScreen(
     onBack: () -> Unit,
+    onOpenExam: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenAi: () -> Unit,
     onOpenData: () -> Unit,
@@ -74,10 +76,17 @@ fun SettingsRootScreen(
         ) {
             SettingsSectionCard {
                 CategoryRow(
+                    icon = AppIcons.School,
+                    title = "Exam",
+                    subtitle = "NEET or JEE Main - Home, Library and papers follow it",
+                    isFirst = true,
+                    onClick = onOpenExam,
+                )
+                CategoryRowGap()
+                CategoryRow(
                     icon = AppIcons.Palette,
                     title = "Appearance",
                     subtitle = "Theme color, dark and AMOLED mode",
-                    isFirst = true,
                     onClick = onOpenAppearance,
                 )
                 CategoryRowGap()
@@ -91,7 +100,7 @@ fun SettingsRootScreen(
                 CategoryRow(
                     icon = AppIcons.Database,
                     title = "NCERT & data",
-                    subtitle = "NCERT book index URL",
+                    subtitle = "NCERT book index and PYQ index URLs",
                     isLast = true,
                     onClick = onOpenData,
                 )
@@ -153,6 +162,7 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
     val settings by store.settings.collectAsState(initial = UserSettings())
     val scope = rememberCoroutineScope()
     var url by remember(settings.ncertIndexUrl) { mutableStateOf(settings.ncertIndexUrl) }
+    var pyqUrl by remember(settings.pyqIndexUrl) { mutableStateOf(settings.pyqIndexUrl) }
 
     SettingsScaffold(title = "NCERT & data", onBack = onBack) {
         Column(
@@ -193,6 +203,62 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
                     }
                 }
             }
+
+            SettingsSectionCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "PYQ index (previous year papers)",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    BodyMuted("HTTPS address of an index.json listing yearly question-bank packs (build it with tools/build_pyq_index.py). The package icon in Library opens the store.")
+                    OutlinedTextField(
+                        value = pyqUrl,
+                        onValueChange = { pyqUrl = it },
+                        label = { Text("PYQ index URL (https)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { scope.launch { store.setPyqIndexUrl(pyqUrl) } },
+                            enabled = pyqUrl.trim() != settings.pyqIndexUrl,
+                            shapes = ButtonDefaults.shapes(),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Save") }
+                        OutlinedButton(
+                            onClick = { pyqUrl = ""; scope.launch { store.setPyqIndexUrl("") } },
+                            enabled = settings.pyqIndexUrl.isNotEmpty() || pyqUrl.isNotEmpty(),
+                            shapes = ButtonDefaults.shapes(),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Clear") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Exam focus: the whole app (Home, Library, PYQ store, practice defaults) follows this choice. */
+@Composable
+fun ExamSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
+    val store = app.settingsStore
+    val settings by store.settings.collectAsState(initial = UserSettings())
+    val scope = rememberCoroutineScope()
+
+    SettingsScaffold(title = "Exam", onBack = onBack) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            ExamPicker(selected = settings.exam, onSelect = { scope.launch { store.setExam(it) } })
+            BodyMuted(
+                "Home, the Library, the previous-year papers store and the default filters in Browse and " +
+                    "Custom practice show only the selected exam. Progress keeps showing all your attempts.",
+            )
         }
     }
 }

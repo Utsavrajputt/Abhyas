@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.ui.theme.AppTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -12,6 +13,10 @@ import kotlinx.coroutines.flow.map
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
 data class UserSettings(
+    /** The exam the whole app is focused on (Home, Library, PYQ store, practice defaults). */
+    val exam: Exam = Exam.NEET,
+    /** HTTPS URL of the hosted PYQ index (index.json). Empty = not set. */
+    val pyqIndexUrl: String = "",
     /** Selected colour theme (Aurora by default). */
     val appTheme: AppTheme = AppTheme.Default,
     /** null = follow the system until the user picks light/dark explicitly. */
@@ -36,6 +41,8 @@ class SettingsStore(private val context: Context) {
         val ai = booleanPreferencesKey("ai_enabled")
         val aiModel = stringPreferencesKey("ai_model")
         val ncertIndex = stringPreferencesKey("ncert_index_url")
+        val exam = stringPreferencesKey("exam")
+        val pyqIndex = stringPreferencesKey("pyq_index_url")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { p ->
@@ -50,6 +57,8 @@ class SettingsStore(private val context: Context) {
             aiEnabled = p[Keys.ai] ?: false,
             aiModel = p[Keys.aiModel]?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash",
             ncertIndexUrl = p[Keys.ncertIndex] ?: "",
+            exam = if (p[Keys.exam] == Exam.JEE_MAIN.name) Exam.JEE_MAIN else Exam.NEET,
+            pyqIndexUrl = p[Keys.pyqIndex] ?: "",
         )
     }
 
@@ -75,5 +84,13 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setNcertIndexUrl(url: String) {
         context.settingsDataStore.edit { it[Keys.ncertIndex] = url.trim() }
+    }
+
+    suspend fun setExam(exam: Exam) {
+        context.settingsDataStore.edit { it[Keys.exam] = exam.name }
+    }
+
+    suspend fun setPyqIndexUrl(url: String) {
+        context.settingsDataStore.edit { it[Keys.pyqIndex] = url.trim() }
     }
 }

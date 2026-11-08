@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -82,6 +83,7 @@ internal fun ExpressiveScreen(
     title: String,
     subtitle: String,
     floatingActionButton: @Composable () -> Unit = {},
+    topBarActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val back = LocalBackAction.current
@@ -91,9 +93,10 @@ internal fun ExpressiveScreen(
                 AbhyasTopBar(
                     title = { Text(title) },
                     navigationIcon = { BackNavigationIcon(onBack = back) },
+                    actions = topBarActions,
                 )
             } else {
-                MainTopBar(title = title)
+                MainTopBar(title = title, extraActions = topBarActions)
             }
         },
         // The root scaffold already pads for the bottom navigation bar.
@@ -175,150 +178,5 @@ internal fun ShapeStat(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Home
-// ---------------------------------------------------------------------------------------------
-
-@Composable
-fun HomeScreen(app: AbhyasApp, onOpenSession: (Long) -> Unit, onImportBank: () -> Unit) {
-    val database = app.database
-    val scope = rememberCoroutineScope()
-    val inProgress by app.attemptRepository.observeInProgress().collectAsState(initial = null)
-    var quickMessage by remember { mutableStateOf<String?>(null) }
-    val total: Int? by database.questionDao().observeCount().collectAsState<Int, Int?>(initial = null)
-    var exam by remember { mutableStateOf(0) }
-    val exams = listOf("NEET", "JEE Main")
-    val hasQuestions = (total ?: 0) > 0
-
-    ExpressiveScreen("Abhyas", "Learn. Practice. Improve.") {
-        Box(
-            modifier = Modifier.align(Alignment.CenterHorizontally).size(168.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (total == null) {
-                LoadingIndicator(modifier = Modifier.size(96.dp))
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(MaterialShapes.Cookie9Sided.toShape())
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "${total ?: 0}",
-                            style = MaterialTheme.typography.displayMediumEmphasized,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Text(
-                            "questions",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
-            }
-        }
-
-        SectionTitle("Exam")
-        ConnectedToggleGroup(exams, exam) { exam = it }
-
-        Button(
-            onClick = {
-                scope.launch {
-                    val examFilter = if (exam == 0) Exam.NEET else Exam.JEE_MAIN
-                    when (val r = app.attemptRepository.startPractice(
-                        PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = examFilter), 20),
-                    )) {
-                        is StartResult.Started -> onOpenSession(r.attemptId)
-                        is StartResult.Failed -> quickMessage = r.message
-                    }
-                }
-            },
-            enabled = hasQuestions,
-            shapes = ButtonDefaults.shapes(),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Outlined.PlayArrow, contentDescription = null)
-            Spacer(Modifier.size(8.dp))
-            Text("Quick practice - ${exams[exam]}", style = MaterialTheme.typography.titleMediumEmphasized)
-        }
-
-        quickMessage?.let { BodyMuted(it) }
-        inProgress?.let { a ->
-            FilledTonalButton(
-                onClick = { onOpenSession(a.id) },
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Resume: ${a.title}") }
-        }
-
-        if (total == 0) {
-            FilledTonalButton(
-                onClick = onImportBank,
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Import a question bank") }
-            BodyMuted("No question banks imported yet. Import a bank or a PDF to start practising.")
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Create
-// ---------------------------------------------------------------------------------------------
-
-@Composable
-fun CreateScreen(onCustomPractice: () -> Unit, onImportBank: () -> Unit, onImportPdf: () -> Unit, onNcertPractice: () -> Unit = {}) {
-    var expanded by remember { mutableStateOf(false) }
-    ExpressiveScreen(
-        title = "Create",
-        subtitle = "Custom practice, NCERT practice, PDF Studio",
-        floatingActionButton = {
-            FloatingActionButtonMenu(
-                expanded = expanded,
-                button = {
-                    ToggleFloatingActionButton(
-                        checked = expanded,
-                        onCheckedChange = { expanded = it },
-                    ) {
-                        Icon(
-                            if (expanded) Icons.Outlined.Close else Icons.Outlined.Add,
-                            contentDescription = if (expanded) "Close menu" else "Create",
-                        )
-                    }
-                },
-            ) {
-                FloatingActionButtonMenuItem(
-                    onClick = { expanded = false; onCustomPractice() },
-                    icon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
-                    text = { Text("Custom practice") },
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = { expanded = false; onNcertPractice() },
-                    icon = { Icon(Icons.Outlined.MenuBook, contentDescription = null) },
-                    text = { Text("Practice from NCERT") },
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = { expanded = false; onImportPdf() },
-                    icon = { Icon(Icons.Outlined.PictureAsPdf, contentDescription = null) },
-                    text = { Text("Import PDF") },
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = { expanded = false; onImportBank() },
-                    icon = { Icon(Icons.Outlined.FileUpload, contentDescription = null) },
-                    text = { Text("Import question bank") },
-                )
-            }
-        },
-    ) {
-        SectionTitle("What you can create")
-        BodyMuted("Custom practice sessions, PDF imports and question-bank imports. Use the + button to start.")
-        BodyMuted("PDF Studio reads digital and scanned PDFs, finds questions and answers, and lets you review before importing.")
-        BodyMuted("Practice from NCERT makes fill-in-the-blank and true/false questions from your books, and can add book exercises and AI assertion-reason questions.")
     }
 }

@@ -12,6 +12,13 @@ All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradl
 - Settings: xmd-style root with Appearance, AI, NCERT & data and About sub-screens.
 - About: xmd's About (hero, Libraries, GitHub, support, GitHub contributors, licence) without the update check.
 - Space Grotesk headings and xmd corner radii.
+- The round + button opens the create options (Custom practice, Practice from NCERT, Import PDF, Import question bank) in a menu; the Create screen is gone.
+- Top bars draw behind the status bar (fixes the gap above the title).
+- Home redesigned around the app-wide exam: big NEET / JEE Main cards, exam hero card with question count, practice by subject, quick practice, resume.
+- Settings > Exam: NEET or JEE Main. Home, Library (banks), PYQ store and the default Browse / Custom practice filter follow it. Progress still shows all attempts.
+
+### Added
+- Previous year papers store (package icon in the Library top bar): NEET 2016-2025 as one downloadable question bank per year, installed through the normal importer after a SHA-256 check. Source is an HTTPS `index.json` set in Settings > NCERT & data (build it with `tools/build_pyq_index.py`).
 
 ## [0.2.0] - Milestone 3 (NCERT Connect, optional AI, polish)
 
