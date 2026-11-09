@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import com.invictus.abhyas.data.pdf.BookCovers
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -54,48 +64,54 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
         else -> cs.surfaceContainerHighest to cs.onSurface
     }
     val openable = book.pageCount > 0 && book.status != BookStatus.FAILED
-    Surface(
-        shape = AbhyasShapes.L,
-        color = container,
+    val context = LocalContext.current
+    val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.id, book.localPath, book.status) {
+        value = if (book.status == BookStatus.FAILED) null else BookCovers.load(context, book.id, book.localPath)
+    }
+    Column(
         modifier = Modifier
-            .width(150.dp)
-            .height(200.dp)
+            .width(128.dp)
             .clip(AbhyasShapes.L)
             .clickable(enabled = openable, onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+        Surface(
+            shape = AbhyasShapes.M,
+            color = container,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth().aspectRatio(0.72f),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(AppIcons.MenuBook, contentDescription = null, tint = onContainer, modifier = Modifier.size(28.dp))
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = onContainer,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
+            val bmp = cover
+            if (bmp != null) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = book.title,
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter,
+                    modifier = Modifier.fillMaxSize(),
                 )
-            }
-            Column {
-                Text(
-                    text = listOfNotNull(book.classLevel?.let { "Class $it" }, book.subject).joinToString(" - "),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onContainer.copy(alpha = 0.85f),
-                )
-                Text(
-                    text = when (book.status) {
-                        BookStatus.READY -> "${book.pageCount} pages"
-                        BookStatus.FAILED -> "Needs retry"
-                        BookStatus.DOWNLOADING -> book.message ?: "Downloading..."
-                        else -> if (openable) "${book.pageCount} pages - indexing" else "Preparing..."
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = onContainer.copy(alpha = 0.7f),
-                )
+            } else {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(AppIcons.MenuBook, contentDescription = null, tint = onContainer, modifier = Modifier.size(36.dp))
+                }
             }
         }
+        Text(
+            text = book.title,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = when (book.status) {
+                BookStatus.READY -> listOfNotNull(book.classLevel?.let { "Class $it" }, "${book.pageCount} pages").joinToString(" - ")
+                BookStatus.FAILED -> "Needs retry"
+                BookStatus.DOWNLOADING -> book.message ?: "Downloading..."
+                else -> if (openable) "${book.pageCount} pages - indexing" else "Preparing..."
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

@@ -69,6 +69,7 @@ fun FloatingNavigation(
     onNcertPractice: () -> Unit,
     onImportPdf: () -> Unit,
     onImportBank: () -> Unit,
+    onNcertConnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -90,6 +91,7 @@ fun FloatingNavigation(
                 onNcertPractice = onNcertPractice,
                 onImportPdf = onImportPdf,
                 onImportBank = onImportBank,
+                onNcertConnect = onNcertConnect,
             )
         }
     }
@@ -227,6 +229,7 @@ private fun CreateMenuButton(
     onNcertPractice: () -> Unit,
     onImportPdf: () -> Unit,
     onImportBank: () -> Unit,
+    onNcertConnect: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -255,6 +258,7 @@ private fun CreateMenuButton(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             CreateMenuItem("Custom practice", AppIcons.Tune) { expanded = false; onCustomPractice() }
             CreateMenuItem("Practice from NCERT", AppIcons.MenuBook) { expanded = false; onNcertPractice() }
+            CreateMenuItem("NCERT Connect", AppIcons.LibraryBooks) { expanded = false; onNcertConnect() }
             CreateMenuItem("Import PDF", AppIcons.Pdf) { expanded = false; onImportPdf() }
             CreateMenuItem("Import question bank", AppIcons.FileOpen) { expanded = false; onImportBank() }
         }

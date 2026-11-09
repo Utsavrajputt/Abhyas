@@ -1,5 +1,6 @@
 package com.invictus.abhyas.data.repo
 
+import com.invictus.abhyas.domain.pack.PaperNaming
 import androidx.room.withTransaction
 import com.invictus.abhyas.data.local.AbhyasDatabase
 import com.invictus.abhyas.data.local.BankEntity
@@ -85,7 +86,7 @@ class BankImporter(
                 db.bankDao().upsert(
                     BankEntity(
                         id = manifest.id,
-                        title = manifest.title?.takeIf { it.isNotBlank() } ?: manifest.id,
+                        title = PaperNaming.pretty(manifest.title?.takeIf { it.isNotBlank() } ?: manifest.id),
                         version = manifest.version,
                         exam = parsed.exam.name,
                         classLevel = manifest.classLevel,

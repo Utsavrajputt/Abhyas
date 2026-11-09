@@ -133,13 +133,7 @@ fun HomeScreen(
         }
 
         message?.let { BodyMuted(it) }
-        inProgress?.let { a ->
-            Button(
-                onClick = { onOpenSession(a.id) },
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Resume: ${a.title}") }
-        }
+        inProgress?.let { a -> ContinueCard(app, a.id, a.title, a.currentIndex, onOpenSession) }
 
         if (total == 0) {
             SectionTitle("Get questions to practise")
@@ -216,6 +210,44 @@ private fun TodayCard(questions: List<Question>, onStart: () -> Unit) {
                 Icon(AppIcons.Play, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
                 Text("Start today's practice")
+            }
+        }
+    }
+}
+
+/** Unfinished test: where you stopped, a progress bar and a Resume button. */
+@Composable
+private fun ContinueCard(app: AbhyasApp, attemptId: Long, title: String, currentIndex: Int, onOpenSession: (Long) -> Unit) {
+    val total by androidx.compose.runtime.produceState(initialValue = 0, attemptId) {
+        value = app.database.attemptDao().getQuestions(attemptId).size
+    }
+    androidx.compose.material3.Surface(
+        shape = AbhyasShapes.L,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Continue where you left off", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+            Text(
+                title,
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (total > 0) {
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { ((currentIndex + 1).coerceAtMost(total)).toFloat() / total },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Question ${(currentIndex + 1).coerceAtMost(total)} of $total",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
+            }
+            Button(onClick = { onOpenSession(attemptId) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                Icon(AppIcons.Play, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text("Resume")
             }
         }
     }

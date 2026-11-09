@@ -50,6 +50,7 @@ import com.invictus.abhyas.ui.pyq.PyqStoreScreen
 import com.invictus.abhyas.ui.screens.HomeScreen
 import com.invictus.abhyas.ui.library.BrowseScreen
 import com.invictus.abhyas.ui.library.LibraryScreen
+import com.invictus.abhyas.ui.library.PapersScreen
 import com.invictus.abhyas.ui.result.ResultScreen
 import com.invictus.abhyas.ui.session.SessionScreen
 import com.invictus.abhyas.ui.setup.SetupScreen
@@ -66,7 +67,7 @@ private const val ROUTE_SETTINGS = "settings"
 
 private val TOP_LEVEL_ROUTES = setOf(Tab.Home.route, Tab.Library.route, Tab.Progress.route)
 
-private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("browse", "setup", "pdfstudio", "ncert", "ncertpractice", "pyq")
+private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("browse", "setup", "pdfstudio", "ncert", "ncertpractice", "pyq", "papers")
 
 private fun Tab.icon() = when (this) {
     Tab.Home -> AppIcons.Home
@@ -130,6 +131,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onCustomPractice = { navController.navigate("setup") { launchSingleTop = true } },
                     onNcertPractice = { navController.navigate("ncertpractice") { launchSingleTop = true } },
                     onImportPdf = { navController.navigate("pdfstudio") { launchSingleTop = true } },
+                    onNcertConnect = { navController.navigate("ncert") { launchSingleTop = true } },
                     onImportBank = {
                         navController.navigate(Tab.Library.route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -158,11 +160,14 @@ fun AbhyasRoot(app: AbhyasApp) {
                 LibraryScreen(
                     app,
                     onBrowse = { navController.navigate("browse") },
-                    onOpenNcert = { navController.navigate("ncert") },
+                    onViewAll = { navController.navigate("papers") },
                     onOpenPyq = { navController.navigate("pyq") },
                     onOpenBook = { navController.navigate("reader/$it") },
                     onOpenSession = { navController.navigate("session/$it") },
                 )
+            }
+            composable("papers") {
+                PapersScreen(app, onOpenSession = { navController.navigate("session/$it") })
             }
             composable("pyq") {
                 PyqStoreScreen(

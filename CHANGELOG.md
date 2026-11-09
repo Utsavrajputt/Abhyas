@@ -4,6 +4,12 @@ All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradl
 
 ## [Unreleased] - xmd-style UI
 
+### Library round 2
+- Library shows the newest 7 papers (unfinished first) with View all, which opens a separate screen with dot filter chips (All, subject, PYQ / Theory, Completed, coaching). Search moved to the top bar, NCERT Connect to the Create (+) menu, new Packages icon.
+- Books on the shelf show a first-page thumbnail (cached).
+- Paper cards: Resume / Start / Retake on the right, PDF export beside it. A paper counts as completed when its test is submitted; an unsubmitted one is shown first in Library and as a Continue card (with progress) on Home. The manual completed icon is gone.
+- Paper names are cleaned at import (`NEET_2016_Phase_1_Question_Paper_with_Solutions_Code_A_P_W_` becomes `NEET 2016 Phase 1 (Code A)`); already installed papers are shown cleaned too.
+
 ### Library and Packages
 - Library: books shelf per subject on top, then question papers; each paper has Start, Save as PDF (to Downloads, with answer key) and a mark-as-completed icon. Sections only show when they have content.
 - Filter sheet: Subject, PYQ / Theory, Completed, Coaching (coaching comes from the package index).

@@ -53,6 +53,7 @@ class SettingsStore(private val context: Context) {
         val indexLinks = stringPreferencesKey("index_links")
         val paperMeta = stringPreferencesKey("paper_meta")
         val completedPapers = stringSetPreferencesKey("completed_papers")
+        val paperAttempts = stringSetPreferencesKey("paper_attempts")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { p ->
@@ -99,6 +100,21 @@ class SettingsStore(private val context: Context) {
 
     /** Bank ids of papers the student marked as completed. */
     val completedPapers: Flow<Set<String>> = context.settingsDataStore.data.map { it[Keys.completedPapers] ?: emptySet() }
+
+    /** Which attempts were started from which installed paper: attempt id -> bank id. */
+    val paperAttempts: Flow<Map<Long, String>> = context.settingsDataStore.data.map { prefs ->
+        (prefs[Keys.paperAttempts] ?: emptySet()).mapNotNull { e ->
+            val i = e.indexOf('|')
+            val id = if (i > 0) e.substring(0, i).toLongOrNull() else null
+            if (id == null) null else id to e.substring(i + 1)
+        }.toMap()
+    }
+
+    suspend fun linkAttemptToPaper(attemptId: Long, bankId: String) {
+        context.settingsDataStore.edit {
+            it[Keys.paperAttempts] = (it[Keys.paperAttempts] ?: emptySet()) + "$attemptId|$bankId"
+        }
+    }
 
     suspend fun setPaperCompleted(bankId: String, done: Boolean) {
         context.settingsDataStore.edit {

@@ -69,11 +69,23 @@ class LibraryViewModel(private val app: AbhyasApp) : ViewModel() {
     val filter = MutableStateFlow(PaperFilter())
 
     /** Installed papers with their coaching / type / subject and completed flag. null = still loading. */
+    private val status = combine(
+        app.settingsStore.paperAttempts,
+        app.database.attemptDao().observeHistory(),
+        app.database.attemptDao().observeInProgress(),
+    ) { byAttempt, history, running ->
+        PaperStatus(
+            submitted = history.mapNotNull { byAttempt[it.id] }.toSet(),
+            inProgress = running?.let { a -> byAttempt[a.id]?.let { mapOf(it to a.id) } } ?: emptyMap(),
+        )
+    }
+
     val papers: StateFlow<List<PaperRow>?> = combine(
         app.database.bankDao().observeAll(),
         app.settingsStore.paperMeta,
         app.settingsStore.completedPapers,
-    ) { banks, meta, done -> PaperRows.build(banks, meta, done) }
+        status,
+    ) { banks, meta, done, st -> PaperRows.build(banks, meta, done, st) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setFilter(f: PaperFilter) { filter.value = f }
@@ -90,7 +102,10 @@ class LibraryViewModel(private val app: AbhyasApp) : ViewModel() {
             val questions = app.questionRepository.load(ids)
             val mode = if (row.type == PaperRows.TYPE_PYQ) PracticeMode.PYQ else PracticeMode.CUSTOM
             when (val r = app.attemptRepository.startFromQuestions(row.title, mode.name, questions)) {
-                is StartResult.Started -> onStarted(r.attemptId)
+                is StartResult.Started -> {
+                    app.settingsStore.linkAttemptToPaper(r.attemptId, row.bank.id)
+                    onStarted(r.attemptId)
+                }
                 is StartResult.Failed -> _import.value = ImportUi.Done("Cannot start", listOf(r.message))
             }
         }
