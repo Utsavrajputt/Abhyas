@@ -1,0 +1,61 @@
+name: Build package index
+
+# Run from the Actions tab (Run workflow). Downloads every .zip attached to a GitHub Release,
+# builds index.json with tools/build_index.py and commits it to the repo root.
+# In the app: Settings > NCERT & data > Other links > add this repo's link.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag that holds the zips (example books-v1)
+        required: true
+        default: books-v1
+      name:
+        description: Source name shown in the app
+        required: true
+        default: Abhyas packages
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      SOURCE_NAME: ${{ inputs.name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download the release zips
+        run: |
+          mkdir -p packs
+          gh release download "$TAG" --pattern '*.zip' --dir packs
+          ls -la packs
+
+      - name: Build index.json
+        run: |
+          python3 tools/build_index.py packs \
+            --base-url "https://github.com/${{ github.repository }}/releases/download/$TAG" \
+            --meta tools/index-meta.json \
+            --name "$SOURCE_NAME" \
+            -o index.json
+          cat index.json
+
+      - name: Commit index.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.json
+          if git diff --cached --quiet; then
+            echo "index.json is already up to date"
+          else
+            git commit -m "chore: update index.json ($TAG)"
+            git push
+          fi

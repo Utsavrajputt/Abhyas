@@ -15,6 +15,7 @@ import com.invictus.abhyas.data.local.BookEntity
 import com.invictus.abhyas.data.local.PassageEntity
 import com.invictus.abhyas.data.local.SavedPassageEntity
 import com.invictus.abhyas.data.pdf.PdfPageRenderer
+import com.invictus.abhyas.domain.ncert.BookLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -42,6 +43,13 @@ class ReaderViewModel(app: AbhyasApp, private val bookId: String) : ViewModel() 
     val bookmarks: StateFlow<List<BookBookmarkEntity>> = repo.observeBookmarks(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val saved: StateFlow<List<SavedPassageEntity>> = repo.observeSaved(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val read: StateFlow<Set<Int>> = repo.observeRead(bookId).map { it.toSet() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** Set for books built from a chapter zip: maps PDF pages to the page numbers printed in the textbook. */
+    val layout = MutableStateFlow<BookLayout?>(null)
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) { layout.value = repo.layout(bookId) }
+    }
 
     /** (page, paragraph) currently highlighted on the page. */
     val highlight = MutableStateFlow<Pair<Int, Int>?>(null)

@@ -20,23 +20,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.ncert.BookRepository
-import com.invictus.abhyas.domain.ncert.NcertRef
+import com.invictus.abhyas.domain.model.Question
 import com.invictus.abhyas.ui.screens.BodyMuted
 
 /**
- * "Where this is explained in NCERT". Shown only when the book is installed and the passage is found
- * again by its hash; an unverifiable reference is simply not displayed.
+ * "Where this is explained in NCERT", with the page number printed in the book and Open in book.
+ * Uses the question's stored reference when the passage is found again by its hash; otherwise the
+ * question text is searched in the installed books. A search match that is not certain is labelled
+ * "likely"; when nothing convincing is found the card is simply not displayed.
  */
 @Composable
-fun NcertRefCard(app: AbhyasApp, ref: NcertRef?, onOpen: (bookId: String, page: Int, paragraph: Int) -> Unit) {
-    if (ref == null) return
-    val resolved by produceState<BookRepository.Resolved?>(initialValue = null, ref) { value = app.books.resolve(ref) }
+fun NcertRefCard(app: AbhyasApp, question: Question, onOpen: (bookId: String, page: Int, paragraph: Int) -> Unit) {
+    val resolved by produceState<BookRepository.Resolved?>(initialValue = null, question.id) {
+        value = question.ncertRef?.let { app.books.resolve(it) } ?: app.books.findForQuestion(question)
+    }
     val r = resolved ?: return
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("In NCERT", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(r.book.title, style = MaterialTheme.typography.titleSmall)
-            BodyMuted(listOfNotNull(r.chapter, "page ${r.page}").joinToString(", "))
+            Text(
+                if (r.likely) "In NCERT (likely)" else "In NCERT",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("Page ${r.pageLabel}", style = MaterialTheme.typography.titleMedium)
+            BodyMuted(listOfNotNull(r.chapter, r.book.title).joinToString(" - "))
             Text(r.text, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
             FilledTonalButton(onClick = { onOpen(r.book.id, r.page, r.paragraph) }, shapes = ButtonDefaults.shapes()) { Text("Open in book") }
         }

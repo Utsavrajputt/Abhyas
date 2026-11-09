@@ -86,6 +86,8 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     val book by vm.book.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
     val highlight by vm.highlight.collectAsState()
+    val layout by vm.layout.collectAsState()
+    val label: (Int) -> String = { p -> layout?.printedLabel(p) ?: p.toString() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var contents by remember { mutableStateOf(false) }
@@ -134,7 +136,7 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
                 TextButton(onClick = onBack, shapes = ButtonDefaults.shapes()) { Text("Back") }
                 Column(Modifier.weight(1f)) {
                     Text(book?.title ?: "", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    BodyMuted("Page $current of $pageCount")
+                    BodyMuted(if (layout != null) "Page ${label(current)} - PDF $current of $pageCount" else "Page $current of $pageCount")
                 }
                 if (aiReady) {
                     Box {
@@ -183,13 +185,13 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
         }
     }
 
-    if (contents) ContentsSheet(vm, onDismiss = { contents = false }) { page, para -> contents = false; jump(page, para) }
-    if (searching) SearchDialog(vm, onDismiss = { searching = false }) { page, para -> searching = false; jump(page, para) }
+    if (contents) ContentsSheet(vm, label, onDismiss = { contents = false }) { page, para -> contents = false; jump(page, para) }
+    if (searching) SearchDialog(vm, label, onDismiss = { searching = false }) { page, para -> searching = false; jump(page, para) }
     aiRequest?.let { r -> AiSheet(app, r, onDismiss = { aiRequest = null }) }
     picked?.let { p ->
         AlertDialog(
             onDismissRequest = { picked = null },
-            title = { Text("Page ${p.page}") },
+            title = { Text("Page ${label(p.page)}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(p.text, style = MaterialTheme.typography.bodyMedium)
@@ -244,7 +246,7 @@ private fun PageView(vm: ReaderViewModel, page: Int, widthPx: Int, highlight: Pa
 }
 
 @Composable
-private fun ContentsSheet(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (Int, Int) -> Unit) {
+private fun ContentsSheet(vm: ReaderViewModel, label: (Int) -> String, onDismiss: () -> Unit, onJump: (Int, Int) -> Unit) {
     val chapters by vm.chapters.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
     val saved by vm.saved.collectAsState()
@@ -262,7 +264,7 @@ private fun ContentsSheet(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (I
                             val done = read.count { it in c.startPage..c.endPage }
                             Column(Modifier.fillMaxWidth().clickable { onJump(c.startPage, -1) }.padding(vertical = 8.dp)) {
                                 Text(c.title, style = MaterialTheme.typography.titleSmall)
-                                BodyMuted("Pages ${c.startPage}-${c.endPage}, read ${done * 100 / total}%")
+                                BodyMuted("Pages ${label(c.startPage)}-${label(c.endPage)}, read ${done * 100 / total}%")
                                 LinearWavyProgressIndicator(progress = { done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
                             }
                         }
@@ -270,7 +272,7 @@ private fun ContentsSheet(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (I
                     1 -> {
                         if (bookmarks.isEmpty()) item { BodyMuted("No bookmarks. Tap the bookmark icon while reading.") }
                         items(bookmarks, key = { it.id }) { b ->
-                            Text("Page ${b.page}", Modifier.fillMaxWidth().clickable { onJump(b.page, -1) }.padding(vertical = 12.dp))
+                            Text("Page ${label(b.page)}", Modifier.fillMaxWidth().clickable { onJump(b.page, -1) }.padding(vertical = 12.dp))
                         }
                     }
                     else -> {
@@ -278,7 +280,7 @@ private fun ContentsSheet(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (I
                         items(saved, key = { it.id }) { s ->
                             Row(Modifier.fillMaxWidth().clickable { onJump(s.page, s.paragraph) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    BodyMuted("Page ${s.page}")
+                                    BodyMuted("Page ${label(s.page)}")
                                     Text(s.text, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                                 }
                                 TextButton(onClick = { vm.deleteSaved(s.id) }) { Text("Remove") }
@@ -292,7 +294,7 @@ private fun ContentsSheet(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (I
 }
 
 @Composable
-private fun SearchDialog(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (Int, Int) -> Unit) {
+private fun SearchDialog(vm: ReaderViewModel, label: (Int) -> String, onDismiss: () -> Unit, onJump: (Int, Int) -> Unit) {
     val query by vm.query.collectAsState()
     val results by vm.results.collectAsState()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -307,7 +309,7 @@ private fun SearchDialog(vm: ReaderViewModel, onDismiss: () -> Unit, onJump: (In
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(results, key = { "${it.page}-${it.idx}" }) { p ->
                         Column(Modifier.fillMaxWidth().clickable { onJump(p.page, p.idx) }.padding(vertical = 8.dp)) {
-                            BodyMuted("Page ${p.page}")
+                            BodyMuted("Page ${label(p.page)}")
                             Text(snippet(p.text, query.trim()), maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                         }
                     }

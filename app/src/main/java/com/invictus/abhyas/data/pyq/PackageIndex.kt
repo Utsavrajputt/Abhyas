@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-/** What a downloadable package is: a question paper / bank zip, or an NCERT-style book PDF. */
+/** What a downloadable package is: a question paper / bank zip, or a book (one PDF, or a zip of NCERT chapter PDFs). */
 enum class PackageType { PAPER, BOOK }
 
 /** One downloadable package listed in an `index.json` (any source: NCERT, PYQ or "Other links"). */
