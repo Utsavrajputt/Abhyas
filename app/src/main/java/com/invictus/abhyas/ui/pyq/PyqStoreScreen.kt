@@ -2,21 +2,31 @@
 
 package com.invictus.abhyas.ui.pyq
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,164 +35,247 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.abhyas.AbhyasApp
-import com.invictus.abhyas.data.prefs.UserSettings
-import com.invictus.abhyas.data.pyq.PaperLink
-import com.invictus.abhyas.data.pyq.PyqEntry
-import com.invictus.abhyas.domain.model.Exam
-import com.invictus.abhyas.ui.icons.AppIcons
-import com.invictus.abhyas.ui.library.appViewModelFactory
+import com.invictus.abhyas.data.local.BankEntity
+import com.invictus.abhyas.data.local.BookEntity
 import com.invictus.abhyas.data.local.BookStatus
 import com.invictus.abhyas.data.ncert.OfficialBook
 import com.invictus.abhyas.data.ncert.OfficialBookState
 import com.invictus.abhyas.data.ncert.OfficialBooks
+import com.invictus.abhyas.data.pyq.PackageEntry
+import com.invictus.abhyas.data.pyq.PackageType
+import com.invictus.abhyas.data.pyq.PaperLink
+import com.invictus.abhyas.ui.icons.AppIcons
+import com.invictus.abhyas.ui.library.ImportUi
+import com.invictus.abhyas.ui.library.LibraryViewModel
+import com.invictus.abhyas.ui.library.appViewModelFactory
 import com.invictus.abhyas.ui.screens.BodyMuted
 import com.invictus.abhyas.ui.screens.ConnectedToggleGroup
 import com.invictus.abhyas.ui.screens.ExpressiveScreen
 import com.invictus.abhyas.ui.screens.SectionTitle
 import com.invictus.abhyas.ui.theme.AbhyasShapes
 
-private val YEARS = (2025 downTo 2016).toList()
+private val ZIP_TYPES = arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
 
-/** Previous-year papers: one row per year (2016-2025), download = install as a question bank. */
+/**
+ * Packages: everything that puts content on the device. Offline = import a zip, PDF or folder and manage
+ * what is installed. Online = packages from every link (NCERT index, PYQ index, Settings > Other links),
+ * each with name, description, version and a Download button.
+ */
 @Composable
 fun PyqStoreScreen(app: AbhyasApp, onOpenSettings: () -> Unit, onOpenStudio: () -> Unit) {
     val vm: PyqViewModel = viewModel(factory = appViewModelFactory(app))
-    val settings by app.settingsStore.settings.collectAsState(initial = UserSettings())
-    val index by vm.index.collectAsState()
-    val installing by vm.installing.collectAsState()
-    val message by vm.message.collectAsState()
-    val banks by vm.banks.collectAsState()
-    val installedIds = banks.map { it.id }.toSet()
-
+    val lib: LibraryViewModel = viewModel(factory = appViewModelFactory(app))
     var tab by remember { mutableIntStateOf(0) }
-    val uriHandler = LocalUriHandler.current
 
-    ExpressiveScreen("Downloads", "Books and previous year papers, download once and use offline") {
-        ConnectedToggleGroup(listOf("Books", "Previous papers"), tab) { tab = it }
-        if (tab == 0) {
-            BooksSection(app)
-            return@ExpressiveScreen
-        }
-        MessageBanner(message, vm::dismissMessage)
-        LinksSection(vm, installing, onOpenStudio)
-        if (settings.exam != Exam.NEET) {
-            BodyMuted("Previous-year packs are only published for NEET for now. Switch the exam to NEET in Settings to see them.")
-            return@ExpressiveScreen
-        }
-
-        when (val state = index) {
-            PyqIndexUi.Loading -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                LoadingIndicator(modifier = Modifier.size(72.dp))
-            }
-
-            PyqIndexUi.NoUrl -> {
-                SectionTitle("Set the PYQ source first")
-                BodyMuted(
-                    "Papers are downloaded as ready-made question banks from an HTTPS index you host " +
-                        "(see tools/build_pyq_index.py). Add its address in Settings, NCERT & data, PYQ index URL.",
-                )
-                Button(onClick = onOpenSettings, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
-                    Text("Open settings")
-                }
-                SectionTitle("Or use the official papers")
-                BodyMuted(
-                    "NTA publishes the papers and answer keys as PDFs. Download one from the official NEET site, " +
-                        "then use + > Import PDF: PDF Studio turns it into a question bank you can review and practise.",
-                )
-                OutlinedButton(
-                    onClick = { runCatching { uriHandler.openUri("https://neet.nta.nic.in/") } },
-                    shapes = ButtonDefaults.shapes(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Open the official NTA NEET site") }
-            }
-
-            is PyqIndexUi.Error -> {
-                SectionTitle("Could not load the list")
-                BodyMuted(state.message)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = vm::refresh, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Retry") }
-                    OutlinedButton(onClick = onOpenSettings, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Settings") }
-                }
-            }
-
-            is PyqIndexUi.Loaded -> {
-                val neet = state.entries.filter { it.exam.equals("NEET", ignoreCase = true) }
-                val byYear = neet.associateBy { it.year }
-                val missing = neet.count { it.id !in installedIds }
-                if (missing > 1) {
-                    FilledTonalButton(
-                        onClick = { vm.downloadAll(neet, installedIds) },
-                        shapes = ButtonDefaults.shapes(),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(AppIcons.Download, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Download all ($missing)")
-                    }
-                }
-                YEARS.forEach { year ->
-                    YearRow(
-                        year = year,
-                        entry = byYear[year],
-                        installed = byYear[year]?.id in installedIds,
-                        busy = byYear[year]?.id in installing,
-                        onDownload = { byYear[year]?.let(vm::download) },
-                    )
-                }
-            }
-        }
+    ExpressiveScreen("Packages", "Import offline, or download packages from your links") {
+        ConnectedToggleGroup(listOf("Offline", "Online"), tab) { tab = it }
+        if (tab == 0) OfflineTab(app, vm, lib, onOpenStudio) else OnlineTab(app, vm, onOpenSettings, onOpenStudio)
     }
 }
 
 @Composable
-private fun YearRow(year: Int, entry: PyqEntry?, installed: Boolean, busy: Boolean, onDownload: () -> Unit) {
+private fun OfflineTab(app: AbhyasApp, vm: PyqViewModel, lib: LibraryViewModel, onOpenStudio: () -> Unit) {
+    val banks by vm.banks.collectAsState()
+    val books by app.books.observeBooks().collectAsState(initial = emptyList())
+    val importState by lib.importState.collectAsState()
+    var pendingRemove by remember { mutableStateOf<BankEntity?>(null) }
+    var pendingRemoveBook by remember { mutableStateOf<BookEntity?>(null) }
+
+    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) lib.importZip(uri) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> if (uri != null) lib.importFolder(uri) }
+
+    BodyMuted("Add content from your phone. Nothing here needs internet.")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { zipPicker.launch(ZIP_TYPES) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Import zip") }
+        FilledTonalButton(onClick = onOpenStudio, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Import PDF") }
+        FilledTonalButton(onClick = { folderPicker.launch(null) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Folder") }
+    }
+    lib.demoPackages.forEach { dir ->
+        OutlinedButton(onClick = { lib.installDemo(dir) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+            Text("Install demo bank ($dir) - debug build only")
+        }
+    }
+    if (importState == ImportUi.Running) {
+        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { LoadingIndicator(modifier = Modifier.size(56.dp)) }
+    }
+
+    SectionTitle("Installed question banks")
+    if (banks.isEmpty()) BodyMuted("No question banks installed yet.")
+    banks.forEach { bank ->
+        Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(bank.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                BodyMuted(
+                    listOfNotNull(
+                        "v${bank.version}", "${bank.questionCount} questions", bank.exam.replace('_', ' '),
+                        bank.classLevel?.let { "Class $it" }, bank.subject, bank.kind.lowercase(),
+                    ).joinToString(" - "),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { zipPicker.launch(ZIP_TYPES) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
+                    TextButton(onClick = { pendingRemove = bank }, shapes = ButtonDefaults.shapes()) { Text("Remove") }
+                }
+            }
+        }
+    }
+
+    if (books.isNotEmpty()) {
+        SectionTitle("Installed books")
+        books.forEach { book ->
+            Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(book.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(book.classLevel?.let { "Class $it" }, book.subject).joinToString(" - "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { pendingRemoveBook = book }) { Text("Remove") }
+                }
+            }
+        }
+    }
+
+    pendingRemove?.let { bank ->
+        AlertDialog(
+            onDismissRequest = { pendingRemove = null },
+            title = { Text("Remove ${bank.title}?") },
+            text = { Text("Its questions, bookmarks and mistakes are deleted. Past test results are kept.") },
+            confirmButton = { TextButton(onClick = { vm.removeBank(bank.id); pendingRemove = null }) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { pendingRemove = null }) { Text("Cancel") } },
+        )
+    }
+    pendingRemoveBook?.let { book ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoveBook = null },
+            title = { Text("Remove ${book.title}?") },
+            text = { Text("The book file is deleted from this device. You can download it again later.") },
+            confirmButton = { TextButton(onClick = { vm.removeBook(book.id); pendingRemoveBook = null }) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { pendingRemoveBook = null }) { Text("Cancel") } },
+        )
+    }
+    (importState as? ImportUi.Done)?.let { done ->
+        AlertDialog(
+            onDismissRequest = lib::dismiss,
+            title = { Text(done.title) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { done.lines.forEach { Text(it) } } },
+            confirmButton = { TextButton(onClick = lib::dismiss) { Text("OK") } },
+        )
+    }
+}
+
+@Composable
+private fun OnlineTab(app: AbhyasApp, vm: PyqViewModel, onOpenSettings: () -> Unit, onOpenStudio: () -> Unit) {
+    val sources by vm.sources.collectAsState()
+    val installing by vm.installing.collectAsState()
+    val message by vm.message.collectAsState()
+    val banks by vm.banks.collectAsState()
+    val books by app.books.observeBooks().collectAsState(initial = emptyList())
+    val bankVersions = banks.associate { it.id to it.version }
+    val bookIds = books.filter { it.status != BookStatus.FAILED }.map { it.id }.toSet()
+
+    MessageBanner(message, vm::dismissMessage)
+
+    if (sources.isEmpty()) {
+        SectionTitle("No online sources yet")
+        BodyMuted("Add the link of an index.json in Settings, NCERT & data (NCERT index, PYQ index or Other links). Its packages then show up here with a Download button.")
+        Button(onClick = onOpenSettings, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Open settings") }
+    }
+
+    sources.forEach { src ->
+        val loaded = src.state as? SourceState.Loaded
+        SectionTitle(loaded?.name ?: src.label)
+        when (val st = src.state) {
+            SourceState.Loading -> Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                LoadingIndicator(modifier = Modifier.size(48.dp))
+            }
+            is SourceState.Error -> {
+                BodyMuted(st.message)
+                OutlinedButton(onClick = vm::refresh, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Retry") }
+            }
+            is SourceState.Loaded -> {
+                if (st.entries.isEmpty()) BodyMuted("This link has no packages.")
+                val todo = st.entries.filter { !isUpToDate(it, bankVersions, bookIds) }
+                if (todo.size > 1) {
+                    FilledTonalButton(onClick = { vm.downloadAll(todo) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                        Icon(AppIcons.Download, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Download all (${todo.size})")
+                    }
+                }
+                st.entries.forEach { entry ->
+                    PackageCard(
+                        entry = entry,
+                        busy = entry.id in installing,
+                        installed = isUpToDate(entry, bankVersions, bookIds),
+                        updatable = entry.type == PackageType.PAPER && (bankVersions[entry.id] ?: Int.MAX_VALUE) < entry.version,
+                        onDownload = { vm.download(entry) },
+                    )
+                }
+                if (st.skipped > 0) BodyMuted("${st.skipped} invalid entries in this index were skipped.")
+            }
+        }
+    }
+
+    SectionTitle("NCERT textbooks (official site)")
+    BooksSection(app)
+    LinksSection(vm, installing, onOpenStudio)
+}
+
+private fun isUpToDate(entry: PackageEntry, bankVersions: Map<String, Int>, bookIds: Set<String>): Boolean = when (entry.type) {
+    PackageType.PAPER -> (bankVersions[entry.id] ?: -1) >= entry.version
+    PackageType.BOOK -> entry.id in bookIds
+}
+
+/** One downloadable package: name, description and facts on the left; Download / Update / installed on the right. */
+@Composable
+private fun PackageCard(entry: PackageEntry, busy: Boolean, installed: Boolean, updatable: Boolean, onDownload: () -> Unit) {
     Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (entry.description.isNotBlank()) {
+                    Text(entry.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
                 Text(
-                    entry?.title ?: "NEET UG $year",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = when {
-                        entry == null -> "Not published yet"
-                        entry.questions > 0 -> "${entry.questions} questions"
-                        else -> "Question bank"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = listOfNotNull(
+                        if (entry.type == PackageType.BOOK) "Book" else "Question paper",
+                        "v${entry.version}",
+                        entry.questions.takeIf { it > 0 }?.let { "$it questions" },
+                        entry.year?.toString(),
+                        entry.subject,
+                        entry.coaching,
+                        entry.sizeBytes?.let { "${(it / (1024 * 1024)).coerceAtLeast(1)} MB" },
+                    ).joinToString(" - "),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             when {
                 busy -> LoadingIndicator(modifier = Modifier.size(40.dp))
                 installed -> Icon(AppIcons.Check, contentDescription = "Installed", tint = MaterialTheme.colorScheme.primary)
-                entry != null -> FilledTonalButton(onClick = onDownload, shapes = ButtonDefaults.shapes()) {
+                else -> FilledTonalButton(onClick = onDownload, shapes = ButtonDefaults.shapes()) {
                     Icon(AppIcons.Download, contentDescription = null)
                     Spacer(Modifier.size(6.dp))
-                    Text("Download")
+                    Text(if (updatable) "Update" else "Download")
                 }
             }
         }

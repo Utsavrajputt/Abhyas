@@ -16,6 +16,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.style.TextOverflow
+import com.invictus.abhyas.data.pyq.GitHubLinks
+import com.invictus.abhyas.data.pyq.IndexLink
+import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -163,6 +170,11 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var url by remember(settings.ncertIndexUrl) { mutableStateOf(settings.ncertIndexUrl) }
     var pyqUrl by remember(settings.pyqIndexUrl) { mutableStateOf(settings.pyqIndexUrl) }
+    val links by store.indexLinks.collectAsState(initial = emptyList())
+    var linkUrl by remember { mutableStateOf("") }
+    var linkBusy by remember { mutableStateOf(false) }
+    var linkMessage by remember { mutableStateOf<String?>(null) }
+    var linkError by remember { mutableStateOf(false) }
 
     SettingsScaffold(title = "NCERT & data", onBack = onBack) {
         Column(
@@ -179,7 +191,7 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    BodyMuted("HTTPS address of a hosted book index. Books are downloaded from it on the NCERT screen; everything stays offline afterwards.")
+                    BodyMuted("HTTPS address of a hosted book index. Its books show up in Packages > Online; everything stays offline after downloading.")
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },
@@ -211,7 +223,7 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    BodyMuted("HTTPS address of an index.json listing yearly question-bank packs (build it with tools/build_pyq_index.py). The package icon in Library opens the store.")
+                    BodyMuted("HTTPS address of an index.json listing yearly question-bank packs (build it with tools/build_index.py). Its papers show up in Packages > Online (package icon in Library).")
                     OutlinedTextField(
                         value = pyqUrl,
                         onValueChange = { pyqUrl = it },
@@ -232,6 +244,85 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
                             shapes = ButtonDefaults.shapes(),
                             modifier = Modifier.weight(1f),
                         ) { Text("Clear") }
+                    }
+                }
+            }
+
+            SettingsSectionCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Other links",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    BodyMuted(
+                        "Add as many index.json links as you like, for example one you publish on GitHub. " +
+                            "The app reads the name and the packages from the link itself; they show up in Packages > Online.",
+                    )
+                    links.forEach { link ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(link.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    link.url,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            TextButton(onClick = { scope.launch { store.setIndexLinks(links.filter { it.id != link.id }) } }) { Text("Remove") }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = linkUrl,
+                        onValueChange = { linkUrl = it; linkMessage = null },
+                        label = { Text("index.json link or GitHub repo (https)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    linkMessage?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (linkError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = {
+                                val url = GitHubLinks.normalize(linkUrl)
+                                scope.launch {
+                                    linkBusy = true
+                                    linkError = true
+                                    try {
+                                        if (links.any { it.url == url }) {
+                                            linkMessage = "This link is already added"
+                                        } else {
+                                            val parsed = app.pyqRepository.fetchPackageIndex(url)
+                                            if (parsed.entries.isEmpty()) {
+                                                linkMessage = parsed.errors.firstOrNull() ?: "No packages found at this link"
+                                            } else {
+                                                val name = parsed.name ?: url.removePrefix("https://").substringBefore('/')
+                                                store.setIndexLinks(links + IndexLink(java.util.UUID.randomUUID().toString(), name, url))
+                                                linkUrl = ""
+                                                linkError = false
+                                                linkMessage = "Added $name: ${parsed.entries.size} packages"
+                                            }
+                                        }
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        linkMessage = e.message ?: "Could not read this link"
+                                    } finally {
+                                        linkBusy = false
+                                    }
+                                }
+                            },
+                            enabled = linkUrl.isNotBlank() && !linkBusy,
+                            shapes = ButtonDefaults.shapes(),
+                        ) { Text("Add link") }
+                        if (linkBusy) LoadingIndicator(modifier = Modifier.size(36.dp))
                     }
                 }
             }

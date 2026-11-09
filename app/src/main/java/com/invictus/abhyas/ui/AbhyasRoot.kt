@@ -161,6 +161,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onOpenNcert = { navController.navigate("ncert") },
                     onOpenPyq = { navController.navigate("pyq") },
                     onOpenBook = { navController.navigate("reader/$it") },
+                    onOpenSession = { navController.navigate("session/$it") },
                 )
             }
             composable("pyq") {

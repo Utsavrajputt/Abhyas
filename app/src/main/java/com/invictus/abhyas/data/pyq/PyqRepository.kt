@@ -30,7 +30,7 @@ data class PyqEntry(
 )
 
 sealed interface PyqInstallResult {
-    data class Installed(val message: String) : PyqInstallResult
+    data class Installed(val message: String, val bankId: String? = null) : PyqInstallResult
     data class Failed(val message: String) : PyqInstallResult
 }
 
@@ -57,6 +57,46 @@ class PyqRepository(
             parseIndex(bytes)
         } finally {
             conn.disconnect()
+        }
+    }
+
+    /** Fetches any index.json (NCERT, PYQ or an "Other link") and parses it with [PackageIndexParser]. */
+    suspend fun fetchPackageIndex(url: String): ParsedIndex = withContext(Dispatchers.IO) {
+        require(url.startsWith("https://")) { "The link must start with https://" }
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 30_000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", USER_AGENT)
+            if (conn.responseCode != 200) throw IOException("Server answered ${conn.responseCode}")
+            PackageIndexParser.parse(conn.inputStream.use { it.readBounded(MAX_INDEX_BYTES) })
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** Downloads a paper / question-bank zip from an index entry (checksum-verified when given) and installs it. */
+    suspend fun installPackage(entry: PackageEntry): PyqInstallResult = withContext(Dispatchers.IO) {
+        val zip = File(context.cacheDir, "pkg_${entry.id}.zip")
+        val stage = File(context.cacheDir, "pkgstage_${System.nanoTime()}")
+        try {
+            fetchTo(entry.url, zip, MAX_PACK_BYTES, entry.sha256)
+            val files = reader.readZip(Uri.fromFile(zip), stage)
+            when (val r = importer.install(files.manifest, files.questions, stage)) {
+                is ImportResult.Success -> PyqInstallResult.Installed("${r.report.imported} questions added", r.report.bankId)
+                is ImportResult.AlreadyInstalled -> PyqInstallResult.Installed("Already installed", r.bankId)
+                is ImportResult.Failure -> PyqInstallResult.Failed(r.message)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PackageReadException) {
+            PyqInstallResult.Failed(e.message ?: "This is not an Abhyas question-bank zip")
+        } catch (e: Exception) {
+            PyqInstallResult.Failed("Download failed: ${e.message}")
+        } finally {
+            zip.delete()
+            stage.deleteRecursively()
         }
     }
 

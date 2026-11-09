@@ -18,6 +18,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import com.invictus.abhyas.domain.attempt.PracticeMode
+import com.invictus.abhyas.data.repo.StartResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -60,6 +63,55 @@ class LibraryViewModel(private val app: AbhyasApp) : ViewModel() {
     fun installDemo(dir: String) = startImport { _ -> app.packageReader.readAsset("demo/$dir") }
 
     fun dismiss() { _import.value = ImportUi.Idle }
+
+    // ---- question papers (Library list) ----
+
+    val filter = MutableStateFlow(PaperFilter())
+
+    /** Installed papers with their coaching / type / subject and completed flag. null = still loading. */
+    val papers: StateFlow<List<PaperRow>?> = combine(
+        app.database.bankDao().observeAll(),
+        app.settingsStore.paperMeta,
+        app.settingsStore.completedPapers,
+    ) { banks, meta, done -> PaperRows.build(banks, meta, done) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setFilter(f: PaperFilter) { filter.value = f }
+
+    fun setCompleted(bankId: String, done: Boolean) {
+        viewModelScope.launch { app.settingsStore.setPaperCompleted(bankId, done) }
+    }
+
+    /** Starts the whole paper in its original question order. */
+    fun startPaper(row: PaperRow, onStarted: (Long) -> Unit) {
+        if (_import.value == ImportUi.Running) return
+        viewModelScope.launch {
+            val ids = PaperRows.paperOrder(app.questionRepository.matchingIds(QuestionFilter(bankId = row.bank.id)))
+            val questions = app.questionRepository.load(ids)
+            val mode = if (row.type == PaperRows.TYPE_PYQ) PracticeMode.PYQ else PracticeMode.CUSTOM
+            when (val r = app.attemptRepository.startFromQuestions(row.title, mode.name, questions)) {
+                is StartResult.Started -> onStarted(r.attemptId)
+                is StartResult.Failed -> _import.value = ImportUi.Done("Cannot start", listOf(r.message))
+            }
+        }
+    }
+
+    /** Exports the paper (questions, then answer key) as a PDF in Downloads. */
+    fun exportPdf(row: PaperRow) {
+        if (_import.value == ImportUi.Running) return
+        _import.value = ImportUi.Running
+        viewModelScope.launch {
+            _import.value = try {
+                val ids = PaperRows.paperOrder(app.questionRepository.matchingIds(QuestionFilter(bankId = row.bank.id)))
+                val saved = app.paperPdfExporter.export(row.title, app.questionRepository.load(ids))
+                ImportUi.Done("PDF saved", listOf(saved.fileName, "Saved in ${saved.where}"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ImportUi.Done("Could not save the PDF", listOf(e.message ?: "Unknown error"))
+            }
+        }
+    }
 
     fun remove(bankId: String) {
         viewModelScope.launch { app.bankImporter.remove(bankId) }

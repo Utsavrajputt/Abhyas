@@ -4,9 +4,13 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.invictus.abhyas.data.pyq.IndexLink
 import com.invictus.abhyas.data.pyq.PaperLink
 import com.invictus.abhyas.data.pyq.PaperLinkCodec
+import com.invictus.abhyas.data.pyq.PaperMeta
+import com.invictus.abhyas.data.pyq.SourceCodec
 import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.ui.theme.AppTheme
 import kotlinx.coroutines.flow.Flow
@@ -46,6 +50,9 @@ class SettingsStore(private val context: Context) {
         val exam = stringPreferencesKey("exam")
         val pyqIndex = stringPreferencesKey("pyq_index_url")
         val paperLinks = stringPreferencesKey("paper_links")
+        val indexLinks = stringPreferencesKey("index_links")
+        val paperMeta = stringPreferencesKey("paper_meta")
+        val completedPapers = stringSetPreferencesKey("completed_papers")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { p ->
@@ -70,6 +77,34 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setPaperLinks(list: List<PaperLink>) {
         context.settingsDataStore.edit { it[Keys.paperLinks] = PaperLinkCodec.encode(list) }
+    }
+
+    /** "Other links": extra index.json sources added in Settings (name filled from the index itself). */
+    val indexLinks: Flow<List<IndexLink>> = context.settingsDataStore.data.map { SourceCodec.decodeLinks(it[Keys.indexLinks]) }
+
+    suspend fun setIndexLinks(list: List<IndexLink>) {
+        context.settingsDataStore.edit { it[Keys.indexLinks] = SourceCodec.encodeLinks(list) }
+    }
+
+    /** Coaching / subject / kind of installed papers, keyed by bank id (taken from the index they came from). */
+    val paperMeta: Flow<Map<String, PaperMeta>> = context.settingsDataStore.data.map { SourceCodec.decodeMeta(it[Keys.paperMeta]) }
+
+    suspend fun putPaperMeta(bankId: String, meta: PaperMeta) {
+        context.settingsDataStore.edit {
+            val current = SourceCodec.decodeMeta(it[Keys.paperMeta]).toMutableMap()
+            current[bankId] = meta
+            it[Keys.paperMeta] = SourceCodec.encodeMeta(current)
+        }
+    }
+
+    /** Bank ids of papers the student marked as completed. */
+    val completedPapers: Flow<Set<String>> = context.settingsDataStore.data.map { it[Keys.completedPapers] ?: emptySet() }
+
+    suspend fun setPaperCompleted(bankId: String, done: Boolean) {
+        context.settingsDataStore.edit {
+            val current = it[Keys.completedPapers] ?: emptySet()
+            it[Keys.completedPapers] = if (done) current + bankId else current - bankId
+        }
     }
 
     suspend fun setAppTheme(theme: AppTheme) {

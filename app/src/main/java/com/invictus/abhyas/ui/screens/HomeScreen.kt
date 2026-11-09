@@ -143,7 +143,7 @@ fun HomeScreen(
 
         if (total == 0) {
             SectionTitle("Get questions to practise")
-            BodyMuted("No ${exam.name.replace('_', ' ')} questions yet. Open Downloads for books and previous-year papers, or import a question bank.")
+            BodyMuted("No ${exam.name.replace('_', ' ')} questions yet. Open Packages for books and previous-year papers, or import a question bank.")
             Button(
                 onClick = onOpenPyq,
                 shapes = ButtonDefaults.shapes(),
@@ -151,7 +151,7 @@ fun HomeScreen(
             ) {
                 Icon(AppIcons.Package, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Downloads")
+                Text("Packages")
             }
             FilledTonalButton(
                 onClick = onImportBank,

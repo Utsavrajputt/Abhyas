@@ -1,0 +1,31 @@
+{
+  "name": "My Abhyas packs",
+  "packages": [
+    {
+      "id": "neet-2024",
+      "name": "NEET UG 2024",
+      "description": "Full paper with answer key",
+      "version": 1,
+      "type": "paper",
+      "exam": "NEET",
+      "subject": "Mixed",
+      "kind": "pyq",
+      "year": 2024,
+      "coaching": "Allen",
+      "questions": 180,
+      "url": "https://github.com/YOU/REPO/releases/download/v1/neet-2024.zip",
+      "sha256": "<64 hex characters, optional for papers>"
+    },
+    {
+      "id": "ncert-physics-11-1",
+      "name": "NCERT Physics Part I",
+      "description": "Class 11",
+      "version": 1,
+      "type": "book",
+      "subject": "Physics",
+      "class": 11,
+      "url": "https://github.com/YOU/REPO/releases/download/v1/ncert-physics-11-1.pdf",
+      "sha256": "<64 hex characters, required for books>"
+    }
+  ]
+}

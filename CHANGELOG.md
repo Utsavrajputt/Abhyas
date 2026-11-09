@@ -4,6 +4,13 @@ All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradl
 
 ## [Unreleased] - xmd-style UI
 
+### Library and Packages
+- Library: books shelf per subject on top, then question papers; each paper has Start, Save as PDF (to Downloads, with answer key) and a mark-as-completed icon. Sections only show when they have content.
+- Filter sheet: Subject, PYQ / Theory, Completed, Coaching (coaching comes from the package index).
+- Downloads became Packages with Offline (import zip, PDF, folder, installed banks and books) and Online (packages from every link, with name, description, version, Download / Update).
+- Settings > NCERT & data: new Other links (any number of index.json links or GitHub repo links; the app fills the name and packages from the index).
+- tools/build_index.py builds the index.json (packages list) from a folder of bank zips; old `packs` and `books` indexes still work.
+
 ### Changed
 - Navigation: xmd-style floating pill bar (Home, Library, Progress) with a separate round Create (+) button. Settings moved to the top bar.
 - Top bar on every screen like xmd: flat emphasized title, dark/light toggle (also on title tap) and Settings gear; sub-screens show a back arrow.

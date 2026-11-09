@@ -8,13 +8,17 @@ import android.net.Uri
 import com.invictus.abhyas.data.pyq.FoundLink
 import com.invictus.abhyas.data.pyq.PaperLink
 import com.invictus.abhyas.data.pyq.PendingPaper
-import com.invictus.abhyas.data.pyq.PyqEntry
+import com.invictus.abhyas.data.pyq.PackageEntry
+import com.invictus.abhyas.data.pyq.PackageType
+import com.invictus.abhyas.data.pyq.PaperMeta
 import com.invictus.abhyas.data.pyq.PyqInstallResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import com.invictus.abhyas.domain.ncert.IndexEntry
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -25,17 +29,19 @@ sealed interface ScanUi {
     data class Found(val items: List<FoundLink>) : ScanUi
 }
 
-sealed interface PyqIndexUi {
-    data object NoUrl : PyqIndexUi
-    data object Loading : PyqIndexUi
-    data class Error(val message: String) : PyqIndexUi
-    data class Loaded(val entries: List<PyqEntry>) : PyqIndexUi
+sealed interface SourceState {
+    data object Loading : SourceState
+    data class Error(val message: String) : SourceState
+    data class Loaded(val name: String?, val entries: List<PackageEntry>, val skipped: Int) : SourceState
 }
+
+/** One online source: the NCERT index, the PYQ index, or a link added in Settings. */
+data class SourceUi(val key: String, val label: String, val url: String, val state: SourceState)
 
 class PyqViewModel(private val app: AbhyasApp) : ViewModel() {
     private val repo = app.pyqRepository
 
-    val index = MutableStateFlow<PyqIndexUi>(PyqIndexUi.Loading)
+    val sources = MutableStateFlow<List<SourceUi>>(emptyList())
     /** Pack ids being downloaded right now. */
     val installing = MutableStateFlow<Set<String>>(emptySet())
     val message = MutableStateFlow<String?>(null)
@@ -130,46 +136,92 @@ class PyqViewModel(private val app: AbhyasApp) : ViewModel() {
         }
     }
 
+    /** Loads every online source (NCERT index, PYQ index and the "Other links") at the same time. */
     fun refresh() {
-        index.value = PyqIndexUi.Loading
         viewModelScope.launch {
-            val url = app.settingsStore.settings.first().pyqIndexUrl.trim()
-            if (url.isEmpty()) {
-                index.value = PyqIndexUi.NoUrl
-                return@launch
-            }
-            index.value = try {
-                PyqIndexUi.Loaded(repo.fetchIndex(url))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: IllegalArgumentException) {
-                PyqIndexUi.Error(e.message ?: "Invalid URL")
-            } catch (e: Exception) {
-                PyqIndexUi.Error("Could not load the list: ${e.message}")
+            val st = app.settingsStore.settings.first()
+            val extra = app.settingsStore.indexLinks.first()
+            val list = buildList {
+                if (st.ncertIndexUrl.isNotBlank()) add(SourceUi("ncert", "NCERT index", st.ncertIndexUrl.trim(), SourceState.Loading))
+                if (st.pyqIndexUrl.isNotBlank()) add(SourceUi("pyq", "PYQ index", st.pyqIndexUrl.trim(), SourceState.Loading))
+                extra.forEach { add(SourceUi(it.id, it.name, it.url, SourceState.Loading)) }
+            }.distinctBy { it.url }
+            sources.value = list
+            list.forEach { src ->
+                launch {
+                    val result = loadSource(src.url)
+                    sources.update { cur -> cur.map { if (it.key == src.key) it.copy(state = result) else it } }
+                }
             }
         }
     }
 
-    fun download(entry: PyqEntry) {
+    private suspend fun loadSource(url: String): SourceState = try {
+        val parsed = repo.fetchPackageIndex(url)
+        if (parsed.entries.isEmpty() && parsed.errors.isNotEmpty()) SourceState.Error(parsed.errors.first())
+        else SourceState.Loaded(parsed.name, parsed.entries, parsed.errors.size)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IllegalArgumentException) {
+        SourceState.Error(e.message ?: "Invalid link")
+    } catch (e: Exception) {
+        SourceState.Error("Could not load: ${e.message}")
+    }
+
+    /** Papers install as question banks (and remember coaching / subject / kind); books download in the background. */
+    fun download(entry: PackageEntry) {
         if (entry.id in installing.value) return
         viewModelScope.launch { installOne(entry) }
     }
 
-    /** Downloads every listed pack that is not installed yet, one after another. */
-    fun downloadAll(entries: List<PyqEntry>, installedIds: Set<String>) {
-        val todo = entries.filter { it.id !in installedIds && it.id !in installing.value }
+    /** Downloads everything in [entries] that is not installed yet, one after another. */
+    fun downloadAll(entries: List<PackageEntry>) {
+        val todo = entries.filter { it.id !in installing.value }
         if (todo.isEmpty()) return
         viewModelScope.launch { todo.forEach { installOne(it) } }
     }
 
-    private suspend fun installOne(entry: PyqEntry) {
+    private suspend fun installOne(entry: PackageEntry) {
         installing.value = installing.value + entry.id
-        val r = repo.install(entry)
-        installing.value = installing.value - entry.id
-        message.value = when (r) {
-            is PyqInstallResult.Installed -> "${entry.title}: ${r.message}"
-            is PyqInstallResult.Failed -> "${entry.title} failed: ${r.message}"
+        try {
+            message.value = when (entry.type) {
+                PackageType.BOOK -> {
+                    val err = app.books.startDownload(
+                        IndexEntry(
+                            id = entry.id, title = entry.name, classLevel = entry.classLevel,
+                            subject = entry.subject ?: "Other", url = entry.url, sha256 = entry.sha256.orEmpty(),
+                            sizeBytes = entry.sizeBytes, note = entry.description.ifBlank { null },
+                        ),
+                    )
+                    if (err == null) "${entry.name}: downloading in the background" else "${entry.name}: $err"
+                }
+                PackageType.PAPER -> when (val r = repo.installPackage(entry)) {
+                    is PyqInstallResult.Installed -> {
+                        val bankId = r.bankId ?: entry.id
+                        app.settingsStore.putPaperMeta(
+                            bankId,
+                            PaperMeta(name = entry.name, coaching = entry.coaching, subject = entry.subject, kind = entry.kind, year = entry.year),
+                        )
+                        "${entry.name}: ${r.message}"
+                    }
+                    is PyqInstallResult.Failed -> "${entry.name} failed: ${r.message}"
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            message.value = "${entry.name} failed: ${e.message}"
+        } finally {
+            installing.value = installing.value - entry.id
         }
+    }
+
+    fun removeBank(id: String) {
+        viewModelScope.launch { app.bankImporter.remove(id) }
+    }
+
+    fun removeBook(id: String) {
+        viewModelScope.launch { app.books.deleteBook(id) }
     }
 
     fun dismissMessage() { message.value = null }
