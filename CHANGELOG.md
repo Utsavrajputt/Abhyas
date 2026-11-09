@@ -4,6 +4,12 @@ All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradl
 
 ## [Unreleased] - xmd-style UI
 
+### Chapter-zip books and "Page N" on answers
+- Packages > Online: a book entry may point to a zip of NCERT chapter PDFs (`keph101.pdf` ... `keph1ps.pdf` prelims, `keph1a1.pdf` appendices, `keph1an.pdf` answers). The app verifies the SHA-256, merges the files in book order and reads every chapter name from the first page (Contents lists Prelims, Ch 1..N, Appendices, Answers).
+- Pages show the number printed in the textbook (read from the page headers; roman numerals in the prelims). The Reader header, Contents, bookmarks and search show it, with the PDF page beside it in the header.
+- Result review: every question shows "Page N" and Open in book. The stored reference is used when it still resolves; otherwise the question text is searched in the installed books of its subject. Uncertain matches say "likely", no match shows nothing. Prelims, appendices and the answer key are not searched.
+- tools/build_index.py indexes chapter zips (meta: type=book, subject, class).
+
 ### Library round 2
 - Library shows the newest 7 papers (unfinished first) with View all, which opens a separate screen with dot filter chips (All, subject, PYQ / Theory, Completed, coaching). Search moved to the top bar, NCERT Connect to the Create (+) menu, new Packages icon.
 - Books on the shelf show a first-page thumbnail (cached).

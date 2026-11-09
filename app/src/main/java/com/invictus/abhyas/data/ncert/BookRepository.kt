@@ -23,13 +23,26 @@ import com.invictus.abhyas.data.local.SavedPassageEntity
 import com.invictus.abhyas.data.pdf.LineCollector
 import com.invictus.abhyas.data.pdf.PdfPageRenderer
 import com.invictus.abhyas.data.pdf.PdfTextExtractor
+import com.invictus.abhyas.domain.model.Question
 import com.invictus.abhyas.domain.ncert.BookChapter
+import com.invictus.abhyas.domain.ncert.BookLayout
 import com.invictus.abhyas.domain.ncert.BookIndexParser
+import com.invictus.abhyas.domain.ncert.BookZipPlan
+import com.invictus.abhyas.domain.ncert.ChapterTitles
 import com.invictus.abhyas.domain.ncert.ChapterGuess
 import com.invictus.abhyas.domain.ncert.IndexEntry
 import com.invictus.abhyas.domain.ncert.IndexParseResult
+import com.invictus.abhyas.domain.ncert.MatchConfidence
+import com.invictus.abhyas.domain.ncert.MatchPassage
 import com.invictus.abhyas.domain.ncert.NcertRef
 import com.invictus.abhyas.domain.ncert.ParagraphSplitter
+import com.invictus.abhyas.domain.ncert.PartInfo
+import com.invictus.abhyas.domain.ncert.PassageIndex
+import com.invictus.abhyas.domain.ncert.PassageMatch
+import com.invictus.abhyas.domain.ncert.PassageMatcher
+import com.invictus.abhyas.domain.ncert.PrintedPages
+import com.invictus.abhyas.domain.ncert.SectionKind
+import com.invictus.abhyas.domain.ncert.ZipPart
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +54,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.DigestInputStream
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -63,10 +77,24 @@ class BookRepository(
         data class Failed(val message: String) : AddResult
     }
 
-    class Resolved(val book: BookEntity, val page: Int, val paragraph: Int, val chapter: String?, val text: String)
+    /**
+     * A located passage. [page] is the page of the stored PDF (what the reader opens); [pageLabel] is the
+     * number printed in the textbook. [likely] marks a text-search match that is not certain.
+     */
+    class Resolved(
+        val book: BookEntity,
+        val page: Int,
+        val paragraph: Int,
+        val chapter: String?,
+        val text: String,
+        val pageLabel: String = page.toString(),
+        val likely: Boolean = false,
+    )
 
     private val dao get() = db.bookDao()
     private val root = File(context.filesDir, "books")
+    private val layouts = ConcurrentHashMap<String, BookLayout>()
+    private val matchIndexes = ConcurrentHashMap<String, PassageIndex>()
 
     fun observeBooks(): Flow<List<BookEntity>> = dao.observeBooks()
     fun observeReadCounts(): Flow<List<ReadCount>> = dao.observeReadCounts()
@@ -145,10 +173,7 @@ class BookRepository(
         val dir = File(root, id).apply { mkdirs() }
         val dest = File(dir, "book.pdf")
         try {
-            val merger = com.tom_roush.pdfbox.multipdf.PDFMergerUtility()
-            merger.destinationFileName = dest.absolutePath
-            chapters.forEach { merger.addSource(it) }
-            merger.mergeDocuments(com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly())
+            mergePdfs(chapters, dest)
             val md = MessageDigest.getInstance("SHA-256")
             dest.inputStream().use { input ->
                 val buf = ByteArray(64 * 1024)
@@ -249,6 +274,8 @@ class BookRepository(
         wm.cancelUniqueWork("book-dl-$id")
         wm.cancelUniqueWork("book-index-$id")
         dao.deleteBook(id)
+        layouts.remove(id)
+        matchIndexes.remove(id)
         withContext(Dispatchers.IO) { File(root, id).deleteRecursively() }
     }
 
@@ -319,6 +346,7 @@ class BookRepository(
                 dao.setState(id, BookStatus.FAILED, 0, "Checksum mismatch: the file was not saved")
                 return@withContext Outcome.FAILED
             }
+            if (looksLikeZip(part)) return@withContext buildFromZip(book, part, target)
             if (!part.renameTo(target)) { part.copyTo(target, overwrite = true); part.delete() }
             val pages = try { PdfPageRenderer(target).use { it.pageCount } } catch (e: Exception) {
                 target.delete()
@@ -374,6 +402,7 @@ class BookRepository(
                     dao.deleteChapters(id)
                     dao.insertChapters(chapters.map { BookChapterEntity(id, it.index, it.title, it.startPage, it.endPage) })
                 }
+                matchIndexes.remove(id)
                 val hasText = dao.passageCount(id) > 0
                 dao.setState(id, BookStatus.READY, total, if (hasText) null else "No searchable text (scanned PDF): reading works, search does not")
             }
@@ -393,6 +422,7 @@ class BookRepository(
     }
 
     private suspend fun chaptersFor(doc: PDDocument, id: String, pageCount: Int): List<BookChapter> {
+        layout(id)?.chapters()?.takeIf { it.isNotEmpty() }?.let { return it }
         val fromOutline = ChapterGuess.fromStarts(outlineStarts(doc), pageCount)
         if (fromOutline.size > 1) return fromOutline
         val heads = dao.pageHeads(id).groupBy({ it.page }, { it.text })
@@ -464,10 +494,180 @@ class BookRepository(
             ?: dao.passageByHash(ref.bookId, ref.textHash)
             ?: return null
         val chapter = dao.chapters(ref.bookId).lastOrNull { it.startPage <= at.page }?.title
-        return Resolved(book, at.page, at.idx, chapter, at.text)
+        return Resolved(book, at.page, at.idx, chapter, at.text, pageLabel(ref.bookId, at.page))
+    }
+
+    /**
+     * Finds where a question is explained by searching its text in the installed, indexed books of
+     * its subject (and class, when known). Only chapter pages are searched (not prelims or answers).
+     * Null when nothing convincing is found.
+     */
+    suspend fun findForQuestion(q: Question): Resolved? = withContext(Dispatchers.Default) {
+        val ready = dao.books().filter { it.status == BookStatus.READY }
+        if (ready.isEmpty()) return@withContext null
+        var pool = ready.filter { sameSubject(it.subject, q.subject) }.ifEmpty { ready }
+        val sameClass = q.classLevel?.let { c -> pool.filter { it.classLevel == c } }.orEmpty()
+        if (sameClass.isNotEmpty()) pool = sameClass
+        var best: PassageMatch? = null
+        for (b in pool) {
+            val m = PassageMatcher.best(q.statement, matchIndex(b)) ?: continue
+            val cur = best
+            if (cur == null || m.score > cur.score) best = m
+        }
+        val hit = best ?: return@withContext null
+        val book = pool.first { it.id == hit.passage.bookId }
+        val chapter = dao.chapters(book.id).lastOrNull { it.startPage <= hit.passage.page }?.title
+        Resolved(
+            book, hit.passage.page, hit.passage.idx, chapter, hit.passage.text,
+            pageLabel(book.id, hit.passage.page), likely = hit.confidence == MatchConfidence.LIKELY,
+        )
+    }
+
+    private fun sameSubject(book: String, question: String): Boolean {
+        val b = book.trim().lowercase()
+        val s = question.trim().lowercase()
+        if (b == s) return true
+        val biology = setOf("biology", "botany", "zoology")
+        return b in biology && s in biology
+    }
+
+    private suspend fun matchIndex(b: BookEntity): PassageIndex {
+        matchIndexes[b.id]?.let { return it }
+        val lay = layout(b.id)
+        val rows = dao.passagesInRange(b.id, 1, b.pageCount.coerceAtLeast(1))
+            .filter { lay == null || lay.isContent(it.page) }
+            .map { MatchPassage(b.id, it.page, it.idx, it.text) }
+        return PassageIndex(rows).also { matchIndexes[b.id] = it }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Chapter-wise zips (NCERT's keph101.pdf ... keph1an.pdf): layout, printed page numbers
+    // ------------------------------------------------------------------------------------------
+
+    /** The layout of a book built from a chapter zip, or null for any other book. */
+    fun layout(bookId: String): BookLayout? {
+        layouts[bookId]?.let { return it }
+        val f = File(File(root, bookId), LAYOUT_FILE)
+        if (!f.exists()) return null
+        val l = BookLayout.fromJson(f.readText()) ?: return null
+        layouts[bookId] = l
+        return l
+    }
+
+    /** The page number printed in the textbook for [page] of the stored PDF (the PDF page when unknown). */
+    fun pageLabel(bookId: String, page: Int): String = layout(bookId)?.printedLabel(page) ?: page.toString()
+
+    private fun looksLikeZip(f: File): Boolean = try {
+        f.inputStream().use {
+            val h = ByteArray(4)
+            it.read(h) == 4 && h[0] == 'P'.code.toByte() && h[1] == 'K'.code.toByte() && h[2].toInt() == 3 && h[3].toInt() == 4
+        }
+    } catch (e: IOException) {
+        false
+    }
+
+    private fun mergePdfs(files: List<File>, dest: File) {
+        val merger = com.tom_roush.pdfbox.multipdf.PDFMergerUtility()
+        merger.destinationFileName = dest.absolutePath
+        files.forEach { merger.addSource(it) }
+        merger.mergeDocuments(com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly())
+    }
+
+    /**
+     * The downloaded file is a zip of NCERT chapter PDFs: unpack, merge in book order (prelims, chapters,
+     * appendices, answers), write `layout.json` (chapter names, printed page numbers) and queue the indexer.
+     */
+    private suspend fun buildFromZip(book: BookEntity, zip: File, target: File): Outcome {
+        dao.setState(book.id, BookStatus.DOWNLOADING, 0, "Building book")
+        val work = File(root, "${book.id}_zip").apply { deleteRecursively(); mkdirs() }
+        try {
+            val parts = unpackZip(zip, work)
+            if (parts.isEmpty()) {
+                zip.delete()
+                dao.setState(book.id, BookStatus.FAILED, 0, "The zip has no NCERT chapter PDFs (names like keph101.pdf)")
+                return Outcome.FAILED
+            }
+            val infos = parts.map { (p, f) ->
+                val pages = PdfPageRenderer(f).use { it.pageCount }
+                val title = if (p.kind == SectionKind.CHAPTER) ChapterTitles.fromFirstPage(firstPageText(f)) else null
+                PartInfo(p.kind, p.number, pages, title)
+            }
+            mergePdfs(parts.map { it.second }, target)
+            val layout = BookLayout.build(infos, printedOffset(target, infos))
+            File(target.parentFile, LAYOUT_FILE).writeText(layout.toJson())
+            layouts.remove(book.id)
+            matchIndexes.remove(book.id)
+            val pages = PdfPageRenderer(target).use { it.pageCount }
+            zip.delete()
+            dao.updateBook(dao.getBook(book.id)!!.copy(pageCount = pages, status = BookStatus.INDEXING, indexedPages = 0, message = null))
+            enqueueIndex(book.id, replace = true)
+            return Outcome.DONE
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            target.delete()
+            zip.delete()
+            dao.setState(book.id, BookStatus.FAILED, 0, "Could not build the book: ${e.message ?: e.javaClass.simpleName}")
+            return Outcome.FAILED
+        } finally {
+            work.deleteRecursively()
+        }
+    }
+
+    /** Writes the recognised PDFs of [zip] into [work] and returns them in book order. */
+    private fun unpackZip(zip: File, work: File): List<Pair<ZipPart, File>> {
+        val found = ArrayList<Pair<ZipPart, File>>()
+        var total = 0L
+        java.util.zip.ZipInputStream(zip.inputStream().buffered()).use { zin ->
+            var entry = zin.nextEntry
+            while (entry != null) {
+                val part = if (entry.isDirectory) null else BookZipPlan.classify(entry.name)
+                if (part != null) {
+                    val f = File(work, "part${found.size}.pdf")
+                    f.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = zin.read(buf)
+                            if (n < 0) break
+                            total += n
+                            if (total > MAX_BOOK_BYTES) throw IOException("The zip is larger than ${MAX_BOOK_BYTES / 1024 / 1024} MB when unpacked")
+                            out.write(buf, 0, n)
+                        }
+                    }
+                    found += part to f
+                }
+                zin.closeEntry()
+                entry = zin.nextEntry
+            }
+        }
+        return BookZipPlan.plan(found.map { it.first }).mapNotNull { k -> found.firstOrNull { it.first.entryName == k.entryName } }
+    }
+
+    private fun firstPageText(f: File): String = try {
+        extractor.open(f).use { doc -> extractor.extractPage(doc, 1).text }
+    } catch (e: Exception) {
+        ""
+    }
+
+    /** `printed page - merged page`, read from the header/footer numbers of the first chapter's pages. */
+    private fun printedOffset(book: File, infos: List<PartInfo>): Int? {
+        val prelims = infos.filter { it.kind == SectionKind.PRELIMS }.sumOf { it.pages }
+        val firstChapter = infos.firstOrNull { it.kind == SectionKind.CHAPTER }?.pages ?: return null
+        val pages = LinkedHashMap<Int, List<String>>()
+        try {
+            extractor.open(book).use { doc ->
+                for (p in (prelims + 2)..(prelims + minOf(firstChapter, 5))) {
+                    pages[p] = extractor.extractPage(doc, p).text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                }
+            }
+        } catch (e: Exception) {
+            return null
+        }
+        return PrintedPages.offset(pages)
     }
 
     private companion object {
         const val MAX_BOOK_BYTES = 400L * 1024 * 1024
+        const val LAYOUT_FILE = "layout.json"
     }
 }

@@ -1,0 +1,62 @@
+{
+  "ncert-11-physics-1": {
+    "type": "book",
+    "name": "NCERT Physics Class 11 Part 1",
+    "subject": "Physics",
+    "class": 11
+  },
+  "ncert-11-physics-2": {
+    "type": "book",
+    "name": "NCERT Physics Class 11 Part 2",
+    "subject": "Physics",
+    "class": 11
+  },
+  "ncert-11-chemistry-1": {
+    "type": "book",
+    "name": "NCERT Chemistry Class 11 Part 1",
+    "subject": "Chemistry",
+    "class": 11
+  },
+  "ncert-11-chemistry-2": {
+    "type": "book",
+    "name": "NCERT Chemistry Class 11 Part 2",
+    "subject": "Chemistry",
+    "class": 11
+  },
+  "ncert-11-biology": {
+    "type": "book",
+    "name": "NCERT Biology Class 11",
+    "subject": "Biology",
+    "class": 11
+  },
+  "ncert-12-physics-1": {
+    "type": "book",
+    "name": "NCERT Physics Class 12 Part 1",
+    "subject": "Physics",
+    "class": 12
+  },
+  "ncert-12-physics-2": {
+    "type": "book",
+    "name": "NCERT Physics Class 12 Part 2",
+    "subject": "Physics",
+    "class": 12
+  },
+  "ncert-12-chemistry-1": {
+    "type": "book",
+    "name": "NCERT Chemistry Class 12 Part 1",
+    "subject": "Chemistry",
+    "class": 12
+  },
+  "ncert-12-chemistry-2": {
+    "type": "book",
+    "name": "NCERT Chemistry Class 12 Part 2",
+    "subject": "Chemistry",
+    "class": 12
+  },
+  "ncert-12-biology": {
+    "type": "book",
+    "name": "NCERT Biology Class 12",
+    "subject": "Biology",
+    "class": 12
+  }
+}

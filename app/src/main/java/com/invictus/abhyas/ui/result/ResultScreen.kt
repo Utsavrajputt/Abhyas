@@ -215,7 +215,7 @@ private fun ReviewCard(app: AbhyasApp, r: ReviewItem, bookmarked: Boolean, onBoo
                 Text("Explanation", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 MathText(it)
             }
-            com.invictus.abhyas.ui.ncert.NcertRefCard(app, q.ncertRef, onOpenNcert)
+            com.invictus.abhyas.ui.ncert.NcertRefCard(app, q, onOpenNcert)
             if (aiReady) {
                 androidx.compose.material3.TextButton(
                     onClick = {
