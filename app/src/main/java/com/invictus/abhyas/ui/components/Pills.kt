@@ -76,7 +76,7 @@ fun InfoPill(text: String, modifier: Modifier = Modifier, highlight: Boolean = f
 
 /** Pill-shaped tab switcher (single choice). */
 @Composable
-fun PillTabs(items: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun PillTabs(items: List<String>, selected: Int, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
     val cs = MaterialTheme.colorScheme
     Surface(shape = CircleShape, color = cs.surfaceContainerHigh, modifier = modifier.fillMaxWidth()) {
         Row(Modifier.padding(4.dp)) {
