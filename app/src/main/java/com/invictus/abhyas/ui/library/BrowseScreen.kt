@@ -20,7 +20,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.runtime.LaunchedEffect
+import com.invictus.abhyas.ui.components.InfoPill
+import com.invictus.abhyas.ui.components.SearchPill
+import com.invictus.abhyas.ui.theme.AbhyasShapes
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LoadingIndicator
@@ -58,6 +66,8 @@ fun BrowseScreen(app: AbhyasApp) {
 
 
     val back = LocalBackAction.current
+    // Questions are searched across every exam; the NEET / JEE switch is gone from this screen.
+    LaunchedEffect(Unit) { vm.update { it.copy(exam = null) } }
     Column(Modifier.fillMaxSize()) {
         AbhyasTopBar(
             title = { Text("Questions") },
@@ -67,13 +77,13 @@ fun BrowseScreen(app: AbhyasApp) {
             Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+        FilterControls(vm, showSearch = true, showExam = false)
+
         Text(
-            "$count matching",
-            style = MaterialTheme.typography.bodyMedium,
+            if (count == 1) "1 question" else "$count questions",
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-
-        FilterControls(vm, showSearch = true)
 
         Box(Modifier.fillMaxSize()) {
             when {
@@ -97,22 +107,19 @@ fun BrowseScreen(app: AbhyasApp) {
 
 @Composable
 private fun QuestionRow(q: Question) {
-    ElevatedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Surface(shape = AbhyasShapes.M, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             MathText(q.statement, maxLines = 4)
-            val meta = listOfNotNull(
-                q.subject,
-                q.chapter,
-                q.difficulty?.name?.lowercase(),
-                q.type.label(),
-                q.year?.toString(),
-                if (q.answerVerified) null else "answer unverified",
-            )
-            Text(
-                meta.joinToString(" - "),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOfNotNull(
+                    q.subject,
+                    q.chapter,
+                    q.difficulty?.name?.lowercase()?.replaceFirstChar { it.uppercaseChar() },
+                    q.type.label(),
+                    q.year?.toString(),
+                    if (q.answerVerified) null else "Answer unverified",
+                ).forEach { InfoPill(it) }
+            }
         }
     }
 }
@@ -121,9 +128,12 @@ private fun QuestionRow(q: Question) {
 internal fun FilterDropdown(label: String, options: List<String>, selected: String?, onSelect: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        FilledTonalButton(onClick = { open = true }, shapes = ButtonDefaults.shapes()) {
-            Text(if (selected == null) label else "$label: $selected", maxLines = 1)
-        }
+        FilterChip(
+            selected = selected != null,
+            onClick = { open = true },
+            label = { Text(selected ?: label, maxLines = 1) },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+        )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("Any") }, onClick = { onSelect(null); open = false })
             options.forEach { opt ->
@@ -146,7 +156,7 @@ private fun QuestionType.label(): String = when (this) {
 
 /** Search + exam/kind toggles + dropdown filters bound to a [BrowseViewModel]; shared by Browse and practice setup. */
 @Composable
-internal fun FilterControls(vm: BrowseViewModel, showSearch: Boolean) {
+internal fun FilterControls(vm: BrowseViewModel, showSearch: Boolean, showExam: Boolean = true) {
     val filter by vm.filter.collectAsState()
     val subjects by vm.subjects.collectAsState()
     val chapters by vm.chapters.collectAsState()
@@ -156,15 +166,13 @@ internal fun FilterControls(vm: BrowseViewModel, showSearch: Boolean) {
     val kinds = KindFilter.entries
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (showSearch) OutlinedTextField(
+            if (showSearch) SearchPill(
                 value = filter.query,
                 onValueChange = { q -> vm.update { it.copy(query = q) } },
-                label = { Text("Search statement, chapter, topic, tags") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = "Search questions, chapters, topics",
             )
 
-            ConnectedToggleGroup(listOf("All", "NEET", "JEE Main"), exams.indexOf(filter.exam)) { i ->
+            if (showExam) ConnectedToggleGroup(listOf("All", "NEET", "JEE Main"), exams.indexOf(filter.exam)) { i ->
                 vm.update { it.copy(exam = exams[i]) }
             }
             ConnectedToggleGroup(listOf("All", "Theory", "Numerical"), kinds.indexOf(filter.kind)) { i ->

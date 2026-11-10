@@ -99,8 +99,7 @@ val LocalShellActions = compositionLocalOf<ShellActions?> { null }
 
 /**
  * Header of the main screens: title (tap it to flip dark/light, like xmd) with the
- * dark/light toggle and the Settings gear as actions. The toggle runs the same
- * circular reveal as the theme picker, starting at the tapped spot.
+ * Settings gear as action. The theme can also be changed in Settings.
  */
 @Composable
 fun MainTopBar(
@@ -143,16 +142,6 @@ fun MainTopBar(
         actions = {
             extraActions()
             if (shell != null) {
-                IconButton(
-                    shapes = IconButtonDefaults.shapes(),
-                    onClick = { toggleFrom(toggleBounds.value.center) },
-                    modifier = Modifier.onGloballyPositioned { toggleBounds.value = it.boundsInWindow() },
-                ) {
-                    Icon(
-                        imageVector = if (shell.isDark) AppIcons.LightMode else AppIcons.DarkMode,
-                        contentDescription = if (shell.isDark) "Switch to light mode" else "Switch to dark mode",
-                    )
-                }
                 IconButton(shapes = IconButtonDefaults.shapes(), onClick = shell.onOpenSettings) {
                     Icon(imageVector = AppIcons.Settings, contentDescription = "Settings")
                 }

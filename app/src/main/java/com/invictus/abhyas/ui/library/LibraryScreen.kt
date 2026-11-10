@@ -69,13 +69,13 @@ fun LibraryScreen(
 
     ExpressiveScreen(
         "Library",
-        "${exam.name.replace('_', ' ')} books and papers, offline",
+        "",
         topBarActions = {
-            IconButton(shapes = IconButtonDefaults.shapes(), onClick = onBrowse) {
-                Icon(AppIcons.Search, contentDescription = "Search questions")
-            }
             IconButton(shapes = IconButtonDefaults.shapes(), onClick = onOpenPyq) {
                 Icon(AppIcons.Package, contentDescription = "Packages: download and import")
+            }
+            IconButton(shapes = IconButtonDefaults.shapes(), onClick = onBrowse) {
+                Icon(AppIcons.Search, contentDescription = "Search questions")
             }
         },
     ) {

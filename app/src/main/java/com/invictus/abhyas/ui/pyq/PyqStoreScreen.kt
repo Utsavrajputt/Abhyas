@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.invictus.abhyas.ui.pyq
 
@@ -8,6 +8,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable as clickableTile
+import androidx.compose.ui.draw.clip
+import com.invictus.abhyas.ui.components.InfoPill
+import com.invictus.abhyas.ui.components.PillTabs
+import com.invictus.abhyas.ui.components.SearchPill
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -78,10 +88,10 @@ fun PyqStoreScreen(app: AbhyasApp, onOpenSettings: () -> Unit, onOpenStudio: () 
     val lib: LibraryViewModel = viewModel(factory = appViewModelFactory(app))
     var tab by remember { mutableIntStateOf(0) }
 
-    ExpressiveScreen("Packages", "Import offline, or download packages from your links") {
-        ConnectedToggleGroup(listOf("Offline", "Online"), tab) { tab = it }
-        if (tab == 0) OfflineTab(app, vm, lib, onOpenStudio, onBrowseOnline = { tab = 1 })
-        else OnlineTab(app, vm, onOpenSettings, onOpenStudio)
+    ExpressiveScreen("Packages", "") {
+        PillTabs(listOf("Online", "Offline"), tab) { tab = it }
+        if (tab == 0) OnlineTab(app, vm, onOpenSettings, onOpenStudio)
+        else OfflineTab(app, vm, lib, onOpenStudio, onBrowseOnline = { tab = 0 })
     }
 }
 
@@ -121,6 +131,35 @@ private fun EmptyState(icon: ImageVector, title: String, hint: String, actionLab
 private fun sizeLabel(bytes: Long): String =
     if (bytes >= 1024 * 1024) "%.1f MB".format(bytes / 1048576.0) else "${(bytes / 1024).coerceAtLeast(1)} KB"
 
+/** Rounded square with an icon: marks a book, a paper pack or a source. */
+@Composable
+private fun IconTile(icon: ImageVector, modifier: Modifier = Modifier) {
+    Surface(shape = AbhyasShapes.S, color = MaterialTheme.colorScheme.secondaryContainer, modifier = modifier.size(46.dp)) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+/** A big tappable tile (icon over a label) for the "add from phone" actions. */
+@Composable
+private fun ActionTile(icon: ImageVector, title: String, subtitle: String, primary: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = AbhyasShapes.L,
+        color = if (primary) cs.primaryContainer else cs.surfaceContainerHigh,
+        modifier = modifier.clip(AbhyasShapes.L).clickableTile(onClick = onClick),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(icon, contentDescription = null, tint = if (primary) cs.onPrimaryContainer else cs.primary, modifier = Modifier.size(28.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (primary) cs.onPrimaryContainer else cs.onSurface)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = if (primary) cs.onPrimaryContainer.copy(alpha = 0.8f) else cs.onSurfaceVariant)
+            }
+        }
+    }
+}
+
 // ----------------------------------------------------------------------------------------------
 // Offline
 // ----------------------------------------------------------------------------------------------
@@ -152,28 +191,21 @@ private fun OfflineTab(app: AbhyasApp, vm: PyqViewModel, lib: LibraryViewModel, 
 
     MessageBanner(message, vm::dismissMessage)
 
-    Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Add from your phone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Hint("A textbook PDF, a question paper PDF, a question-bank zip or a folder. No internet needed.")
-                }
-                if (importState == ImportUi.Running) LoadingIndicator(modifier = Modifier.size(36.dp))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { filePicker.launch(arrayOf("application/pdf") + ZIP_TYPES) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Add file") }
-                FilledTonalButton(onClick = { folderPicker.launch(null) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) { Text("Folder") }
-            }
-            lib.demoPackages.forEach { dir ->
-                OutlinedButton(onClick = { lib.installDemo(dir) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
-                    Text("Install demo bank ($dir) - debug build only")
-                }
-            }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Add from your phone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        if (importState == ImportUi.Running) LoadingIndicator(modifier = Modifier.size(32.dp))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        ActionTile(AppIcons.FileOpen, "Add file", "Textbook, paper PDF or bank zip", primary = true, onClick = { filePicker.launch(arrayOf("application/pdf") + ZIP_TYPES) }, modifier = Modifier.weight(1f).fillMaxHeight())
+        ActionTile(AppIcons.Package, "Folder", "Import a folder of packages", primary = false, onClick = { folderPicker.launch(null) }, modifier = Modifier.weight(1f).fillMaxHeight())
+    }
+    lib.demoPackages.forEach { dir ->
+        OutlinedButton(onClick = { lib.installDemo(dir) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+            Text("Install demo bank ($dir) - debug build only")
         }
     }
 
-    ConnectedToggleGroup(listOf("Books (${books.size})", "Question banks (${banks.size})"), group) { picked = it }
+    PillTabs(listOf("Books (${books.size})", "Question banks (${banks.size})"), group) { picked = it }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (group == 0) {
@@ -196,23 +228,25 @@ private fun OfflineTab(app: AbhyasApp, vm: PyqViewModel, lib: LibraryViewModel, 
                 )
             }
             banks.forEach { bank ->
-                Surface(shape = AbhyasShapes.M, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(bank.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Hint(
-                                listOfNotNull(
-                                    "v${bank.version}", "${bank.questionCount} questions", bank.exam.replace('_', ' '),
-                                    bank.classLevel?.let { "Class $it" }, bank.subject, bank.kind.lowercase(),
-                                ).joinToString(" - "),
-                            )
-                            Text("Installed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconTile(AppIcons.Database)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(bank.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text("Installed", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            }
                         }
-                        TextButton(onClick = { zipPicker.launch(ZIP_TYPES) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
-                        TextButton(onClick = { pendingRemove = bank }, shapes = ButtonDefaults.shapes()) { Text("Remove") }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOfNotNull(
+                                "v${bank.version}", "${bank.questionCount} questions", bank.exam.replace('_', ' '),
+                                bank.classLevel?.let { "Class $it" }, bank.subject, bank.kind.lowercase(),
+                            ).forEach { InfoPill(it) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(onClick = { zipPicker.launch(ZIP_TYPES) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
+                            TextButton(onClick = { pendingRemove = bank }, shapes = ButtonDefaults.shapes()) { Text("Remove") }
+                        }
                     }
                 }
             }
@@ -279,25 +313,30 @@ private fun InstalledBookCard(book: BookEntity, onRemove: () -> Unit, onRetry: (
         BookStatus.DOWNLOADING -> book.message ?: "Downloading"
         else -> book.message ?: "Failed"
     }
-    Surface(shape = AbhyasShapes.M, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(book.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Hint(listOfNotNull(book.classLevel?.let { "Class $it" }, book.subject).joinToString(" - "))
-                Text(
-                    status,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+    Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconTile(AppIcons.MenuBook)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(book.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        status,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (book.status != BookStatus.READY && !failed) LoadingIndicator(modifier = Modifier.size(28.dp))
             }
-            if (failed) TextButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text("Retry") }
-            else if (book.status != BookStatus.READY) LoadingIndicator(modifier = Modifier.size(28.dp))
-            TextButton(onClick = onRemove, shapes = ButtonDefaults.shapes()) { Text("Remove") }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                book.classLevel?.let { InfoPill("Class $it") }
+                InfoPill(book.subject)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (failed) FilledTonalButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text("Retry") }
+                TextButton(onClick = onRemove, shapes = ButtonDefaults.shapes()) { Text("Remove") }
+            }
         }
     }
 }
@@ -320,23 +359,10 @@ private fun OnlineTab(app: AbhyasApp, vm: PyqViewModel, onOpenSettings: () -> Un
     var adding by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
 
-    val total = sources.sumOf { ((it.state as? SourceState.Loaded)?.entries?.size) ?: 0 }
-    val showSearch = total >= 6
-
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (showSearch) {
-            OutlinedTextField(
-                query, { query = it },
-                placeholder = { Text("Search packages") },
-                leadingIcon = { Icon(AppIcons.Search, contentDescription = null) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-        } else {
-            Text("Online packages", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        }
+        SearchPill(query, { query = it }, "Search books and papers", modifier = Modifier.weight(1f))
         Box {
-            FilledTonalIconButton(onClick = { menu = true }) { Icon(AppIcons.Add, contentDescription = "Add a link") }
+            FilledTonalIconButton(onClick = { menu = true }, modifier = Modifier.size(52.dp)) { Icon(AppIcons.Add, contentDescription = "Add a link") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Add a link") }, onClick = { menu = false; adding = true })
                 DropdownMenuItem(text = { Text("Find PDFs on a web page") }, onClick = { menu = false; vm.resetScan(); scanning = true })
@@ -363,10 +389,10 @@ private fun OnlineTab(app: AbhyasApp, vm: PyqViewModel, onOpenSettings: () -> Un
         val todo = shown.filter { !isUpToDate(it, bankVersions, bookIds) }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(loaded?.name ?: src.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(loaded?.name ?: src.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (todo.size > 1) {
-                    TextButton(onClick = { vm.downloadAll(todo) }, shapes = ButtonDefaults.shapes()) { Text("Download all (${todo.size})") }
+                    FilledTonalButton(onClick = { vm.downloadAll(todo) }, shapes = ButtonDefaults.shapes()) { Text("Download all (${todo.size})") }
                 }
             }
             when (val st = src.state) {
@@ -424,43 +450,44 @@ private fun PackageCard(entry: PackageEntry, book: BookEntity?, busy: Boolean, i
         failed != null -> failed.message ?: "Download failed"
         else -> null
     }
-    Surface(shape = AbhyasShapes.M, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(entry.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (entry.description.isNotBlank()) {
-                    Hint(entry.description)
+    Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconTile(if (entry.type == PackageType.BOOK) AppIcons.MenuBook else AppIcons.Article)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(entry.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (entry.description.isNotBlank()) {
+                        Text(entry.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                Hint(
-                    listOfNotNull(
-                        entry.classLevel?.let { "Class $it" },
-                        "v${entry.version}",
-                        entry.questions.takeIf { it > 0 }?.let { "$it questions" },
-                        entry.year?.toString(),
-                        entry.coaching,
-                        entry.sizeBytes?.let { sizeLabel(it) },
-                    ).joinToString(" - "),
-                )
-                if (status != null) {
-                    Text(
-                        status,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (failed != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                when {
+                    busy || live != null -> LoadingIndicator(modifier = Modifier.size(32.dp))
+                    installed -> Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) {
+                        Box(contentAlignment = Alignment.Center) { Icon(AppIcons.Check, contentDescription = "Installed", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp)) }
+                    }
+                    updatable -> FilledTonalButton(onClick = onDownload, shapes = ButtonDefaults.shapes()) { Text("Update") }
+                    failed != null -> FilledTonalButton(onClick = onDownload, shapes = ButtonDefaults.shapes()) { Text("Retry") }
+                    else -> FilledTonalIconButton(onClick = onDownload) { Icon(AppIcons.Download, contentDescription = "Download") }
                 }
             }
-            when {
-                busy || live != null -> LoadingIndicator(modifier = Modifier.size(32.dp))
-                installed -> Icon(AppIcons.Check, contentDescription = "Installed", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp))
-                updatable -> FilledTonalButton(onClick = onDownload, shapes = ButtonDefaults.shapes()) { Text("Update") }
-                failed != null -> FilledTonalButton(onClick = onDownload, shapes = ButtonDefaults.shapes()) { Text("Retry") }
-                else -> FilledTonalIconButton(onClick = onDownload) { Icon(AppIcons.Download, contentDescription = "Download") }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOfNotNull(
+                    entry.classLevel?.let { "Class $it" },
+                    "v${entry.version}",
+                    entry.questions.takeIf { it > 0 }?.let { "$it questions" },
+                    entry.year?.toString(),
+                    entry.coaching,
+                    entry.sizeBytes?.let { sizeLabel(it) },
+                ).forEach { InfoPill(it) }
+            }
+            if (status != null) {
+                Text(
+                    status,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (failed != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

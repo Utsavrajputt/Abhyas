@@ -65,10 +65,6 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
         else -> cs.surfaceContainerHighest to cs.onSurface
     }
     val openable = book.pageCount > 0 && book.status != BookStatus.FAILED
-    val context = LocalContext.current
-    val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.id, book.localPath, book.status) {
-        value = BookCovers.load(context, book)
-    }
     Column(
         modifier = Modifier
             .width(136.dp)
@@ -83,20 +79,7 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
             tonalElevation = 2.dp,
             modifier = Modifier.fillMaxWidth().aspectRatio(0.72f),
         ) {
-            val bmp = cover
-            if (bmp != null) {
-                Image(
-                    bitmap = bmp.asImageBitmap(),
-                    contentDescription = book.title,
-                    contentScale = ContentScale.Crop,
-                    alignment = Alignment.TopCenter,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(AppIcons.MenuBook, contentDescription = null, tint = onContainer, modifier = Modifier.size(36.dp))
-                }
-            }
+            BookCoverArt(book)
         }
         Text(
             text = BookNaming.shortTitle(book.title, book.subject),

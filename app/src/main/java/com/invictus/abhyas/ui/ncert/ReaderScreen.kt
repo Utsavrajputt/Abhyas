@@ -6,6 +6,11 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +33,20 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.runtime.mutableFloatStateOf
+import com.invictus.abhyas.ui.components.AbhyasTopBar
+import com.invictus.abhyas.ui.components.PillTabs
+import com.invictus.abhyas.ui.components.BackNavigationIcon
+import kotlin.math.abs
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -86,16 +105,15 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     val vm: ReaderViewModel = viewModel(key = "reader-$bookId", factory = readerFactory(app, bookId))
     val book by vm.book.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
-    val highlight by vm.highlight.collectAsState()
     val layout by vm.layout.collectAsState()
     val label: (Int) -> String = { p -> layout?.printedLabel(p) ?: p.toString() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var contents by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
-    var picked by remember { mutableStateOf<PassageEntity?>(null) }
-    var aiRequest by remember { mutableStateOf<AiRequestUi?>(null) }
-    var aiMenu by remember { mutableStateOf(false) }
+    var aiOpen by remember { mutableStateOf(false) }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var panX by remember { mutableFloatStateOf(0f) }
     val aiReady by app.aiGateway.ready.collectAsState(initial = false)
     var initialized by remember { mutableStateOf(false) }
     val pageCount = book?.pageCount ?: 0
@@ -128,7 +146,7 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
             }
             val newFirst = if (rangeFrom > 0) rangeFrom else 1
             listState.scrollToItem((target - newFirst).coerceAtLeast(0))
-            if (para >= 0) { vm.highlight.value = target to para; scrollToPassage(target, para) }
+            if (para >= 0) scrollToPassage(target, para)
         }
     }
 
@@ -143,7 +161,7 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
             }
             val page = wanted.coerceIn(first, last.coerceAtLeast(first))
             listState.scrollToItem(page - first)
-            if (startPage > 0 && startPara >= 0) { vm.highlight.value = page to startPara; scrollToPassage(page, startPara) }
+            if (startPage > 0 && startPara >= 0) scrollToPassage(page, startPara)
         }
     }
     LaunchedEffect(pageCount, first) {
@@ -155,54 +173,83 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     }
 
     Surface(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack, shapes = ButtonDefaults.shapes()) { Text("Back") }
-                Column(Modifier.weight(1f)) {
-                    Text(if (inChapter) (chapterList.firstOrNull { it.startPage == first }?.title ?: book?.title ?: "") else (book?.title ?: ""), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    BodyMuted(if (layout != null) "Page ${label(current)} - PDF $current of $pageCount" else "Page $current of $pageCount")
-                }
-                if (aiReady) {
-                    Box {
-                        IconButton(onClick = { aiMenu = true }) { Icon(Icons.Outlined.AutoAwesome, contentDescription = "AI tools for this page") }
-                        DropdownMenu(expanded = aiMenu, onDismissRequest = { aiMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Notes for this page") },
-                                onClick = {
-                                    aiMenu = false
-                                    scope.launch {
-                                        val text = vm.passages(current).joinToString("\n\n") { it.text }
-                                        aiRequest = AiRequestUi(AiFeature.NOTES, text, "Page $current")
-                                    }
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Ask about this page") },
-                                onClick = {
-                                    aiMenu = false
-                                    scope.launch {
-                                        val text = vm.passages(current).joinToString("\n\n") { it.text }
-                                        aiRequest = AiRequestUi(AiFeature.ASK, text, "Page $current")
-                                    }
-                                },
-                            )
-                        }
+        Column(Modifier.fillMaxSize()) {
+            AbhyasTopBar(
+                title = {},
+                navigationIcon = { BackNavigationIcon(onBack = onBack) },
+                actions = {
+                    if (aiReady) IconButton(onClick = { aiOpen = true }) { Icon(Icons.Outlined.AutoAwesome, contentDescription = "Ask AI about this page") }
+                    IconButton(onClick = { searching = true }) { Icon(Icons.Outlined.Search, contentDescription = "Search in book") }
+                    val marked = bookmarks.any { it.page == current }
+                    IconButton(onClick = { vm.setBookmark(current, !marked) }) {
+                        Icon(if (marked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = if (marked) "Remove bookmark" else "Bookmark page")
                     }
-                }
-                IconButton(onClick = { searching = true }) { Icon(Icons.Outlined.Search, contentDescription = "Search in book") }
-                val marked = bookmarks.any { it.page == current }
-                IconButton(onClick = { vm.setBookmark(current, !marked) }) {
-                    Icon(if (marked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = if (marked) "Remove bookmark" else "Bookmark page")
-                }
-                TextButton(onClick = { contents = true }, shapes = ButtonDefaults.shapes()) { Text("Contents") }
-            }
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                val widthPx = constraints.maxWidth
+                    IconButton(onClick = { contents = true }) { Icon(Icons.Rounded.Menu, contentDescription = "Menu") }
+                },
+            )
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                val viewW = constraints.maxWidth
+                // Zoomed pages are drawn sharper, but only after the pinch settles at a clearly larger size.
+                val renderW = if (zoom > 1.4f) (viewW * 1.75f).toInt() else viewW
                 if (pageCount == 0) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BodyMuted(if (book == null) "Book not found." else "Nothing to show yet.") }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize(), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(count = span, key = { first + it }) { i -> PageView(vm, first + i, widthPx, highlight) { picked = it } }
+                    Box(
+                        Modifier.fillMaxSize()
+                            .pointerInput(viewW) {
+                                val w = viewW.toFloat()
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                    do {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        val pressed = event.changes.count { it.pressed }
+                                        if (pressed >= 2) {
+                                            val z = event.calculateZoom()
+                                            val pan = event.calculatePan()
+                                            val c = event.calculateCentroid()
+                                            if (z != 1f || pan != Offset.Zero) {
+                                                val old = zoom
+                                                val new = (old * z).coerceIn(1f, 4f)
+                                                val nx = c.x - (c.x - panX) * (new / old) + pan.x
+                                                zoom = new
+                                                panX = nx.coerceIn(w * (1f - new), 0f)
+                                                event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                            }
+                                        } else if (pressed == 1 && zoom > 1f) {
+                                            val ch = event.changes.first { it.pressed }
+                                            val d = ch.positionChange()
+                                            if (d.x != 0f && abs(d.x) > abs(d.y)) {
+                                                panX = (panX + d.x).coerceIn(w * (1f - zoom), 0f)
+                                                ch.consume()
+                                            }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
+                            .pointerInput(viewW) {
+                                detectTapGestures(onDoubleTap = { o ->
+                                    if (zoom > 1f) { zoom = 1f; panX = 0f } else { zoom = 2f; panX = (-o.x).coerceIn(viewW * (1f - 2f), 0f) }
+                                })
+                            },
+                    ) {
+                        LazyColumn(
+                            Modifier
+                                .layout { measurable, c ->
+                                    val h = (c.maxHeight / zoom).toInt().coerceAtLeast(1)
+                                    val p = measurable.measure(Constraints.fixed(c.maxWidth, h))
+                                    layout(c.maxWidth, c.maxHeight) { p.place(0, 0) }
+                                }
+                                .graphicsLayer {
+                                    scaleX = zoom
+                                    scaleY = zoom
+                                    transformOrigin = TransformOrigin(0f, 0f)
+                                    translationX = panX
+                                },
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            items(count = span, key = { first + it }) { i -> PageView(vm, first + i, renderW) }
+                        }
                     }
                 }
             }
@@ -211,60 +258,17 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
 
     if (contents) ContentsSheet(vm, label, onDismiss = { contents = false }) { page, para -> contents = false; jump(page, para) }
     if (searching) SearchDialog(vm, label, onDismiss = { searching = false }) { page, para -> searching = false; jump(page, para) }
-    aiRequest?.let { r -> AiSheet(app, r, onDismiss = { aiRequest = null }) }
-    picked?.let { p ->
-        AlertDialog(
-            onDismissRequest = { picked = null },
-            title = { Text("Page ${label(p.page)}") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(p.text, style = MaterialTheme.typography.bodyMedium)
-                    if (aiReady) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = { aiRequest = AiRequestUi(AiFeature.EXPLAIN, p.text, "Page ${p.page}"); picked = null }) { Text("Explain") }
-                            TextButton(onClick = { aiRequest = AiRequestUi(AiFeature.SIMPLIFY, p.text, "Page ${p.page}"); picked = null }) { Text("Simplify") }
-                            TextButton(onClick = { aiRequest = AiRequestUi(AiFeature.ASK, p.text, "Page ${p.page}"); picked = null }) { Text("Ask") }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { vm.savePassage(p); picked = null }) { Text("Save passage") } },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { vm.highlight.value = p.page to p.idx; picked = null }) { Text("Highlight") }
-                    TextButton(onClick = { picked = null }) { Text("Close") }
-                }
-            },
-        )
+    if (aiOpen) {
+        val page = current
+        ReaderAiSheet(app, label(page), pageText = { vm.passages(page).joinToString("\n\n") { it.text } }, onDismiss = { aiOpen = false })
     }
 }
 
 @Composable
-private fun PageView(vm: ReaderViewModel, page: Int, widthPx: Int, highlight: Pair<Int, Int>?, onPick: (PassageEntity) -> Unit) {
+private fun PageView(vm: ReaderViewModel, page: Int, widthPx: Int) {
     val aspect by produceState(0.72f, page) { value = vm.aspect(page) }
     val bitmap by produceState<Bitmap?>(null, page, widthPx) { value = vm.render(page, widthPx) }
-    val passages by produceState(emptyList<PassageEntity>(), page) { value = vm.passages(page) }
-    val hl = highlight?.takeIf { it.first == page }?.second
-    val color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
-    Box(
-        Modifier.fillMaxWidth().aspectRatio(aspect).background(Color.White)
-            .pointerInput(passages) {
-                detectTapGestures { off ->
-                    val frac = off.y / size.height
-                    passages.firstOrNull { frac * it.pageHeight in (it.top - 6f)..(it.bottom + 6f) }?.let(onPick)
-                }
-            }
-            .drawWithContent {
-                drawContent()
-                if (hl != null) passages.firstOrNull { it.idx == hl }?.let { p ->
-                    drawRect(
-                        color,
-                        topLeft = Offset(0f, p.top / p.pageHeight * size.height),
-                        size = Size(size.width, (p.bottom - p.top) / p.pageHeight * size.height),
-                    )
-                }
-            },
-    ) {
+    Box(Modifier.fillMaxWidth().aspectRatio(aspect).background(Color.White)) {
         bitmap?.let { Image(it.asImageBitmap(), contentDescription = "Page $page", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
     }
 }
@@ -273,43 +277,26 @@ private fun PageView(vm: ReaderViewModel, page: Int, widthPx: Int, highlight: Pa
 private fun ContentsSheet(vm: ReaderViewModel, label: (Int) -> String, onDismiss: () -> Unit, onJump: (Int, Int) -> Unit) {
     val chapters by vm.chapters.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
-    val saved by vm.saved.collectAsState()
     val read by vm.read.collectAsState()
     var tab by remember { mutableStateOf(0) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ConnectedToggleGroup(listOf("Chapters", "Bookmarks", "Saved"), tab) { tab = it }
+            PillTabs(listOf("Chapters", "Bookmarks"), tab) { tab = it }
             LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                when (tab) {
-                    0 -> {
-                        if (chapters.isEmpty()) item { BodyMuted("Chapters appear when indexing finishes.") }
-                        items(chapters, key = { it.idx }) { c ->
-                            val total = (c.endPage - c.startPage + 1).coerceAtLeast(1)
-                            val done = read.count { it in c.startPage..c.endPage }
-                            Column(Modifier.fillMaxWidth().clickable { onJump(c.startPage, -1) }.padding(vertical = 8.dp)) {
-                                Text(c.title, style = MaterialTheme.typography.titleSmall)
-                                BodyMuted("Pages ${label(c.startPage)}-${label(c.endPage)}, read ${done * 100 / total}%")
-                                LinearWavyProgressIndicator(progress = { done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
-                            }
+                if (tab == 0) {
+                    if (chapters.isEmpty()) item { BodyMuted("Chapters appear when indexing finishes.") }
+                    items(chapters, key = { it.idx }) { c ->
+                        val total = (c.endPage - c.startPage + 1).coerceAtLeast(1)
+                        val done = read.count { it in c.startPage..c.endPage }
+                        Column(Modifier.fillMaxWidth().clickable { onJump(c.startPage, -1) }.padding(vertical = 10.dp)) {
+                            Text(c.title, style = MaterialTheme.typography.titleSmall)
+                            BodyMuted("Pages ${label(c.startPage)}-${label(c.endPage)} - ${done * 100 / total}% read")
                         }
                     }
-                    1 -> {
-                        if (bookmarks.isEmpty()) item { BodyMuted("No bookmarks. Tap the bookmark icon while reading.") }
-                        items(bookmarks, key = { it.id }) { b ->
-                            Text("Page ${label(b.page)}", Modifier.fillMaxWidth().clickable { onJump(b.page, -1) }.padding(vertical = 12.dp))
-                        }
-                    }
-                    else -> {
-                        if (saved.isEmpty()) item { BodyMuted("No saved passages. Tap a paragraph on a page to save it.") }
-                        items(saved, key = { it.id }) { s ->
-                            Row(Modifier.fillMaxWidth().clickable { onJump(s.page, s.paragraph) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    BodyMuted("Page ${label(s.page)}")
-                                    Text(s.text, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                TextButton(onClick = { vm.deleteSaved(s.id) }) { Text("Remove") }
-                            }
-                        }
+                } else {
+                    if (bookmarks.isEmpty()) item { BodyMuted("No bookmarks. Tap the bookmark icon while reading.") }
+                    items(bookmarks, key = { it.id }) { b ->
+                        Text("Page ${label(b.page)}", Modifier.fillMaxWidth().clickable { onJump(b.page, -1) }.padding(vertical = 12.dp))
                     }
                 }
             }

@@ -8,104 +8,98 @@ import com.invictus.abhyas.data.local.BookStatus
 import com.invictus.abhyas.domain.ncert.BookNaming
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 /**
- * Book covers. NCERT textbooks get their cover from the NCERT website at runtime (found on the book's
- * page on ncert.nic.in, then cached on the device); everything else, or when the site cannot be
- * reached, falls back to a thumbnail of the PDF's first page.
+ * Book covers from the internet (Open Library's public search + cover API), cached on the device.
+ * Returns null when no cover is found or there is no network; the shelf then draws its own designed cover.
  */
 object BookCovers {
-    private const val BASE = "https://ncert.nic.in/"
-    private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
+    private const val USER_AGENT = "Abhyas/1.0 (Android study app)"
     private const val MISS_TTL_MS = 3L * 24 * 60 * 60 * 1000
-    private val IMG = Regex("""<img[^>]+?src\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
-    private val IMG_EXT = Regex("""\.(jpe?g|png|webp)(\?.*)?$""", RegexOption.IGNORE_CASE)
-    private val SKIP = Regex("""logo|icon|banner|header|footer|flag|sprite|arrow|button|social|emblem|bg|blank|spacer""", RegexOption.IGNORE_CASE)
 
     suspend fun load(context: Context, book: BookEntity): Bitmap? = withContext(Dispatchers.IO) {
         if (book.status == BookStatus.FAILED) return@withContext null
-        online(context, book)?.let { return@withContext it }
-        load(context, book.id, book.localPath)
-    }
-
-    /** First page of the PDF, rendered once and cached as a small JPEG. */
-    suspend fun load(context: Context, bookId: String, pdfPath: String): Bitmap? = withContext(Dispatchers.IO) {
-        val pdf = File(pdfPath)
-        if (!pdf.isFile) return@withContext null
-        val dir = File(context.cacheDir, "covers").apply { mkdirs() }
-        val cached = File(dir, "$bookId.jpg")
-        if (cached.isFile && cached.lastModified() >= pdf.lastModified()) {
-            BitmapFactory.decodeFile(cached.absolutePath)?.let { return@withContext it }
-        }
-        try {
-            PdfPageRenderer(pdf).use { r ->
-                if (r.pageCount < 1) return@withContext null
-                val bmp = r.render(1, 420).bitmap
-                FileOutputStream(cached).use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-                bmp
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /** NCERT code of a Class 11/12 PCBM book (keph1 = Class 11 Physics Part I), or null for any other book. */
-    fun ncertCode(book: BookEntity): String? {
-        val prefix = when (book.classLevel) { 11 -> "k"; 12 -> "l"; else -> return null }
-        val s = book.subject.lowercase()
-        val sub = when {
-            s.startsWith("phys") -> "ph"
-            s.startsWith("chem") -> "ch"
-            s.startsWith("bio") -> "bo"
-            s.startsWith("math") -> "mh"
-            else -> return null
-        }
-        return prefix + "e" + sub + (BookNaming.part(book.title) ?: 1)
-    }
-
-    private fun online(context: Context, book: BookEntity): Bitmap? {
-        val code = ncertCode(book) ?: return null
+        val key = coverKey(book) ?: return@withContext null
         val dir = File(context.filesDir, "covers-net").apply { mkdirs() }
-        val file = File(dir, "$code.img")
-        val miss = File(dir, "$code.miss")
-        if (file.isFile) BitmapFactory.decodeFile(file.absolutePath)?.let { return it } else {
-            if (miss.isFile && System.currentTimeMillis() - miss.lastModified() < MISS_TTL_MS) return null
+        val file = File(dir, "$key.img")
+        val miss = File(dir, "$key.miss")
+        if (file.isFile) BitmapFactory.decodeFile(file.absolutePath)?.let { return@withContext it }
+        if (miss.isFile && System.currentTimeMillis() - miss.lastModified() < MISS_TTL_MS) return@withContext null
+        val bytes = try {
+            findCover(book)
+        } catch (e: Exception) {
+            return@withContext null // no network right now: try again next time
         }
-        val bytes = try { fetchCover(code) } catch (e: Exception) { null }
-        if (bytes == null) { runCatching { miss.writeText("1") }; return null }
-        file.writeBytes(bytes)
+        if (bytes == null) {
+            runCatching { miss.writeText("1") }
+            return@withContext null
+        }
+        runCatching { FileOutputStream(file).use { it.write(bytes) } }
         miss.delete()
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
 
-    /** Reads the book's page on ncert.nic.in and downloads the first portrait image that looks like a cover. */
-    private fun fetchCover(code: String): ByteArray? {
-        for (n in intArrayOf(8, 7, 9, 10, 6)) {
-            val base = BASE + "textbook.php?$code=0-$n"
-            val html = http(base, 1_000_000)?.toString(Charsets.UTF_8) ?: continue
-            val candidates = IMG.findAll(html).map { it.groupValues[1].trim() }
-                .filter { IMG_EXT.containsMatchIn(it) && !SKIP.containsMatchIn(it.substringAfterLast('/')) }
-                .distinct()
-                .sortedBy { src ->
-                    val l = src.lowercase()
-                    when { code in l -> 0; "cover" in l || "book" in l || "textbook" in l -> 1; else -> 2 }
-                }
-                .take(4).toList()
-            for (src in candidates) {
-                val url = runCatching { URL(URL(base), src).toString() }.getOrNull() ?: continue
-                val bytes = http(url, 3_000_000) ?: continue
-                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-                if (opts.outWidth >= 120 && opts.outHeight >= 150 && opts.outHeight >= opts.outWidth * 1.1f) return bytes
-            }
-            return null
-        }
-        return null
+    /** Stable cache key, only for Class 11/12 textbooks of a known subject. */
+    fun coverKey(book: BookEntity): String? {
+        val cls = book.classLevel?.takeIf { it == 11 || it == 12 } ?: return null
+        val sub = subjectWord(book.subject) ?: return null
+        return "$cls-$sub-${BookNaming.part(book.title) ?: 1}"
     }
+
+    private fun subjectWord(subject: String): String? {
+        val s = subject.lowercase()
+        return when {
+            s.startsWith("phys") -> "physics"
+            s.startsWith("chem") -> "chemistry"
+            s.startsWith("bio") -> "biology"
+            s.startsWith("math") -> "mathematics"
+            else -> null
+        }
+    }
+
+    private fun roman(cls: Int) = if (cls == 12) "xii" else "xi"
+
+    private fun findCover(book: BookEntity): ByteArray? {
+        val cls = book.classLevel ?: return null
+        val sub = subjectWord(book.subject) ?: return null
+        val part = BookNaming.part(book.title)
+        val q = buildString {
+            append("ncert ").append(sub).append(" class ").append(roman(cls))
+            if (part != null) append(" part ").append(part)
+        }
+        val url = "https://openlibrary.org/search.json?q=" + URLEncoder.encode(q, "UTF-8") +
+            "&fields=title,cover_i,author_name,publisher&limit=12"
+        val json = JSONObject(http(url, 600_000)?.toString(Charsets.UTF_8) ?: return null)
+        val docs = json.optJSONArray("docs") ?: return null
+        var bestId = 0L
+        var bestScore = 0
+        for (i in 0 until docs.length()) {
+            val d = docs.getJSONObject(i)
+            val coverId = d.optLong("cover_i", 0L)
+            if (coverId <= 0L) continue
+            val title = d.optString("title").lowercase()
+            if (!title.contains(sub.take(4))) continue
+            val by = (d.optJSONArray("author_name")?.join(" ") ?: "") + " " + (d.optJSONArray("publisher")?.join(" ") ?: "")
+            var score = 0
+            if (by.lowercase().let { "ncert" in it || "national council" in it }) score += 3
+            if (Regex("""\b${roman(cls)}\b|\b$cls\b""").containsMatchIn(title)) score += 2
+            if (part != null && Regex("""\bpart\s*(0?$part|${romanPart(part)})\b""").containsMatchIn(title)) score += 1
+            if (score > bestScore) { bestScore = score; bestId = coverId }
+        }
+        if (bestScore < 3) return null
+        val bytes = http("https://covers.openlibrary.org/b/id/$bestId-L.jpg?default=false", 4_000_000) ?: return null
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+        return if (o.outWidth >= 150 && o.outHeight >= o.outWidth * 1.1f) bytes else null
+    }
+
+    private fun romanPart(p: Int) = when (p) { 1 -> "i"; 2 -> "ii"; 3 -> "iii"; else -> "iv" }
 
     private fun http(url: String, max: Int): ByteArray? {
         val conn = URL(url).openConnection() as HttpURLConnection

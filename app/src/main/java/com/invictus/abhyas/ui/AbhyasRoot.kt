@@ -1,5 +1,7 @@
 package com.invictus.abhyas.ui
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -137,7 +139,18 @@ fun AbhyasRoot(app: AbhyasApp) {
         NavHost(
             navController = navController,
             startDestination = Tab.Home.route,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier.padding(padding).swipeBetweenTabs(
+                enabled = isTopLevel,
+                currentIndex = Tab.entries.indexOfFirst { it.route == currentRoute },
+                count = Tab.entries.size,
+                onGo = { index ->
+                    navController.navigate(Tab.entries[index].route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+            ),
         ) {
             composable(Tab.Home.route) {
                 HomeScreen(
@@ -258,3 +271,24 @@ fun AbhyasRoot(app: AbhyasApp) {
     }
     }
 }
+
+/**
+ * Swipe sideways on a main tab to move to the next or previous tab (Home - Library - Progress).
+ * Horizontal scrollers inside a screen (like the book shelf) consume their own drags first, so they still scroll.
+ */
+private fun Modifier.swipeBetweenTabs(enabled: Boolean, currentIndex: Int, count: Int, onGo: (Int) -> Unit): Modifier =
+    if (!enabled || currentIndex < 0) this else this.pointerInput(currentIndex) {
+        val threshold = 80.dp.toPx()
+        var total = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { total = 0f },
+            onDragCancel = { total = 0f },
+            onDragEnd = {
+                when {
+                    total < -threshold && currentIndex < count - 1 -> onGo(currentIndex + 1)
+                    total > threshold && currentIndex > 0 -> onGo(currentIndex - 1)
+                }
+                total = 0f
+            },
+        ) { _, dx -> total += dx }
+    }
