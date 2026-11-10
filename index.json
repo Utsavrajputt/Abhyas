@@ -1,0 +1,27 @@
+{
+  "name": "Abhyas packages",
+  "packages": [
+    {
+      "id": "ncert-11-physics-1",
+      "name": "NCERT Physics Class 11 Part 1",
+      "version": 1,
+      "type": "book",
+      "subject": "Physics",
+      "class": 11,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-11-physics-1.zip",
+      "sha256": "a18dd2a7457faa460eaf3b906e59195df766193f18c20af2e393d6a569cff072",
+      "sizeBytes": 19670879
+    },
+    {
+      "id": "ncert-12-physics-2",
+      "name": "NCERT Physics Class 12 Part 2",
+      "version": 1,
+      "type": "book",
+      "subject": "Physics",
+      "class": 12,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-12-physics-2.zip",
+      "sha256": "3755527c4d7977349e832cea350481804f89df691562fb87655799d9303bb126",
+      "sizeBytes": 15708731
+    }
+  ]
+}
