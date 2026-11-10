@@ -106,8 +106,8 @@ fun SettingsRootScreen(
                 CategoryRowGap()
                 CategoryRow(
                     icon = AppIcons.Database,
-                    title = "NCERT & data",
-                    subtitle = "NCERT book index and PYQ index URLs",
+                    title = "Sources",
+                    subtitle = "GitHub links for books and papers",
                     isLast = true,
                     onClick = onOpenData,
                 )
@@ -162,21 +162,19 @@ fun AiSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
     }
 }
 
-/** NCERT book index URL (the same value the NCERT screen uses to download books). */
+/** Sources: GitHub links for books and papers. */
 @Composable
 fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
     val store = app.settingsStore
     val settings by store.settings.collectAsState(initial = UserSettings())
     val scope = rememberCoroutineScope()
-    var url by remember(settings.ncertIndexUrl) { mutableStateOf(settings.ncertIndexUrl) }
-    var pyqUrl by remember(settings.pyqIndexUrl) { mutableStateOf(settings.pyqIndexUrl) }
     val links by store.indexLinks.collectAsState(initial = emptyList())
     var linkUrl by remember { mutableStateOf("") }
     var linkBusy by remember { mutableStateOf(false) }
     var linkMessage by remember { mutableStateOf<String?>(null) }
     var linkError by remember { mutableStateOf(false) }
 
-    SettingsScaffold(title = "NCERT & data", onBack = onBack) {
+    SettingsScaffold(title = "Sources", onBack = onBack) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -187,77 +185,13 @@ fun DataSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
             SettingsSectionCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "NCERT book index",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    BodyMuted("HTTPS address of a hosted book index. Its books show up in Packages > Online; everything stays offline after downloading.")
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = { Text("Index URL (https)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = { scope.launch { store.setNcertIndexUrl(url) } },
-                            enabled = url.trim() != settings.ncertIndexUrl,
-                            shapes = ButtonDefaults.shapes(),
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Save") }
-                        OutlinedButton(
-                            onClick = { url = ""; scope.launch { store.setNcertIndexUrl("") } },
-                            enabled = settings.ncertIndexUrl.isNotEmpty() || url.isNotEmpty(),
-                            shapes = ButtonDefaults.shapes(),
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Clear") }
-                    }
-                }
-            }
-
-            SettingsSectionCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "PYQ index (previous year papers)",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    BodyMuted("HTTPS address of an index.json listing yearly question-bank packs (build it with tools/build_index.py). Its papers show up in Packages > Online (package icon in Library).")
-                    OutlinedTextField(
-                        value = pyqUrl,
-                        onValueChange = { pyqUrl = it },
-                        label = { Text("PYQ index URL (https)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = { scope.launch { store.setPyqIndexUrl(pyqUrl) } },
-                            enabled = pyqUrl.trim() != settings.pyqIndexUrl,
-                            shapes = ButtonDefaults.shapes(),
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Save") }
-                        OutlinedButton(
-                            onClick = { pyqUrl = ""; scope.launch { store.setPyqIndexUrl("") } },
-                            enabled = settings.pyqIndexUrl.isNotEmpty() || pyqUrl.isNotEmpty(),
-                            shapes = ButtonDefaults.shapes(),
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Clear") }
-                    }
-                }
-            }
-
-            SettingsSectionCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Other links",
+                        "GitHub links",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     BodyMuted(
-                        "Add as many index.json links as you like, for example one you publish on GitHub. " +
-                            "The app reads the name and the packages from the link itself; they show up in Packages > Online.",
+                        "Add as many index.json links (or GitHub repos) as you like. Books and papers from every link " +
+                            "show up in Packages > Online, and everything stays offline after downloading.",
                     )
                     links.forEach { link ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

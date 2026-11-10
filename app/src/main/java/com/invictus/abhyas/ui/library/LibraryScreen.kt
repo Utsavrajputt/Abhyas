@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.prefs.UserSettings
+import com.invictus.abhyas.domain.ncert.BookNaming
 import com.invictus.abhyas.ui.icons.AppIcons
 import com.invictus.abhyas.ui.screens.BodyMuted
 import com.invictus.abhyas.ui.screens.ExpressiveScreen
@@ -43,8 +44,8 @@ private val SHELF_ORDER = listOf("Physics", "Chemistry", "Biology", "Maths")
 private const val PREVIEW_COUNT = 7
 
 /**
- * Library: books shelf (thumbnails, per subject), then the newest papers (unfinished ones first).
- * Search and Packages are in the top bar; NCERT Connect is in the Create (+) menu.
+ * Library: books shelf (covers, one row per class), then the newest papers (unfinished ones first).
+ * Search and Packages (every download and import) are in the top bar.
  * Every section only shows when it has something in it.
  */
 @Composable
@@ -80,11 +81,17 @@ fun LibraryScreen(
     ) {
         if (hasBooks) {
             SectionTitle("Books")
-            val bySubject = shelf.groupBy { PaperRows.subjectGroup(it.subject) }
-            val order = SHELF_ORDER.filter { it in bySubject } + bySubject.keys.filter { it !in SHELF_ORDER }.sorted()
-            order.forEach { subject ->
-                Text(subject, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                BookShelf(books = bySubject.getValue(subject), onOpenBook = onOpenBook)
+            val byClass = shelf.groupBy { it.classLevel }
+            val order: List<Int?> = byClass.keys.filterNotNull().sorted() + (if (byClass.containsKey(null)) listOf<Int?>(null) else emptyList())
+            order.forEach { cls ->
+                Text(BookNaming.classLabel(cls), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val books = byClass.getValue(cls).sortedWith(
+                    compareBy<com.invictus.abhyas.data.local.BookEntity>(
+                        { SHELF_ORDER.indexOf(PaperRows.subjectGroup(it.subject)).let { i -> if (i < 0) SHELF_ORDER.size else i } },
+                        { BookNaming.shortTitle(it.title, it.subject) },
+                    ),
+                )
+                BookShelf(books = books, onOpenBook = onOpenBook)
             }
         }
 

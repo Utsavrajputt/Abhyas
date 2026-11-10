@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.data.local.BankEntity
 import android.net.Uri
+import com.invictus.abhyas.data.ncert.BookRepository
 import com.invictus.abhyas.data.pyq.FoundLink
+import com.invictus.abhyas.data.pyq.GitHubLinks
+import com.invictus.abhyas.data.pyq.IndexLink
 import com.invictus.abhyas.data.pyq.PaperLink
 import com.invictus.abhyas.data.pyq.PendingPaper
 import com.invictus.abhyas.data.pyq.PackageEntry
@@ -136,22 +139,48 @@ class PyqViewModel(private val app: AbhyasApp) : ViewModel() {
         }
     }
 
-    /** Loads every online source (NCERT index, PYQ index and the "Other links") at the same time. */
+    /** Older versions kept an NCERT index and a PYQ index in Settings; they are now ordinary links. */
+    private suspend fun migrateLegacyUrls() {
+        val st = app.settingsStore.settings.first()
+        val legacy = listOf(st.ncertIndexUrl, st.pyqIndexUrl).map { it.trim() }.filter { it.startsWith("https://") }
+        if (legacy.isEmpty()) return
+        var links = app.settingsStore.indexLinks.first()
+        legacy.forEach { raw ->
+            val url = GitHubLinks.normalize(raw)
+            if (links.none { it.url == url }) {
+                val name = Regex("^https://github\\.com/([^/]+/[^/?#]+)").find(raw)?.groupValues?.get(1)
+                    ?: raw.removePrefix("https://").substringBefore('/')
+                links = links + IndexLink(java.util.UUID.randomUUID().toString(), name, url)
+            }
+        }
+        app.settingsStore.setIndexLinks(links)
+        app.settingsStore.setNcertIndexUrl("")
+        app.settingsStore.setPyqIndexUrl("")
+    }
+
+    /** Loads every source link (books and papers alike) at the same time. */
     fun refresh() {
         viewModelScope.launch {
-            val st = app.settingsStore.settings.first()
+            migrateLegacyUrls()
             val extra = app.settingsStore.indexLinks.first()
-            val list = buildList {
-                if (st.ncertIndexUrl.isNotBlank()) add(SourceUi("ncert", "NCERT index", st.ncertIndexUrl.trim(), SourceState.Loading))
-                if (st.pyqIndexUrl.isNotBlank()) add(SourceUi("pyq", "PYQ index", st.pyqIndexUrl.trim(), SourceState.Loading))
-                extra.forEach { add(SourceUi(it.id, it.name, it.url, SourceState.Loading)) }
-            }.distinctBy { it.url }
+            val list = extra.map { SourceUi(it.id, it.name, it.url, SourceState.Loading) }.distinctBy { it.url }
             sources.value = list
             list.forEach { src ->
                 launch {
                     val result = loadSource(src.url)
                     sources.update { cur -> cur.map { if (it.key == src.key) it.copy(state = result) else it } }
                 }
+            }
+        }
+    }
+
+    /** Adds a PDF from the phone as a textbook. */
+    fun addLocalBook(uri: Uri, title: String, classLevel: Int?, subject: String) {
+        viewModelScope.launch {
+            message.value = when (val r = app.books.addLocal(uri, title.ifBlank { null }, classLevel, subject)) {
+                is BookRepository.AddResult.Added -> "Added. Indexing text in the background; you can already read it."
+                is BookRepository.AddResult.Existing -> "This book is already in your library."
+                is BookRepository.AddResult.Failed -> r.message
             }
         }
     }
@@ -222,6 +251,10 @@ class PyqViewModel(private val app: AbhyasApp) : ViewModel() {
 
     fun removeBook(id: String) {
         viewModelScope.launch { app.books.deleteBook(id) }
+    }
+
+    fun retryBook(id: String) {
+        viewModelScope.launch { app.books.retry(id) }
     }
 
     fun dismissMessage() { message.value = null }

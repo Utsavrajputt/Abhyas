@@ -39,10 +39,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.invictus.abhyas.data.local.BookEntity
 import com.invictus.abhyas.data.local.BookStatus
+import com.invictus.abhyas.domain.ncert.BookNaming
 import com.invictus.abhyas.ui.icons.AppIcons
 import com.invictus.abhyas.ui.theme.AbhyasShapes
 
-/** Horizontal slider of the books on the device; tap one to read it. */
+/** Horizontal slider of the books on the device; tap one to see its chapters. */
 @Composable
 fun BookShelf(books: List<BookEntity>, onOpenBook: (String) -> Unit, modifier: Modifier = Modifier) {
     LazyRow(
@@ -66,13 +67,14 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
     val openable = book.pageCount > 0 && book.status != BookStatus.FAILED
     val context = LocalContext.current
     val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.id, book.localPath, book.status) {
-        value = if (book.status == BookStatus.FAILED) null else BookCovers.load(context, book.id, book.localPath)
+        value = BookCovers.load(context, book)
     }
     Column(
         modifier = Modifier
-            .width(128.dp)
+            .width(136.dp)
             .clip(AbhyasShapes.L)
-            .clickable(enabled = openable, onClick = onClick),
+            .clickable(enabled = openable, onClick = onClick)
+            .padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Surface(
@@ -97,7 +99,7 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
             }
         }
         Text(
-            text = book.title,
+            text = BookNaming.shortTitle(book.title, book.subject),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
@@ -105,7 +107,7 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
         )
         Text(
             text = when (book.status) {
-                BookStatus.READY -> listOfNotNull(book.classLevel?.let { "Class $it" }, "${book.pageCount} pages").joinToString(" - ")
+                BookStatus.READY -> "${book.pageCount} pages"
                 BookStatus.FAILED -> "Needs retry"
                 BookStatus.DOWNLOADING -> book.message ?: "Downloading..."
                 else -> if (openable) "${book.pageCount} pages - indexing" else "Preparing..."

@@ -41,7 +41,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.invictus.abhyas.AbhyasApp
 import com.invictus.abhyas.ui.ncert.NcertPracticeScreen
-import com.invictus.abhyas.ui.ncert.NcertScreen
+import com.invictus.abhyas.ui.ncert.ChapterListScreen
 import com.invictus.abhyas.ui.ncert.ReaderScreen
 import com.invictus.abhyas.ui.pdf.PdfReportScreen
 import com.invictus.abhyas.ui.pdf.PdfReviewScreen
@@ -67,7 +67,7 @@ private const val ROUTE_SETTINGS = "settings"
 
 private val TOP_LEVEL_ROUTES = setOf(Tab.Home.route, Tab.Library.route, Tab.Progress.route)
 
-private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("browse", "setup", "pdfstudio", "ncert", "ncertpractice", "pyq", "papers")
+private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("browse", "setup", "pdfstudio", "chapters/{bookId}", "ncertpractice", "pyq", "papers")
 
 private fun Tab.icon() = when (this) {
     Tab.Home -> AppIcons.Home
@@ -114,7 +114,7 @@ fun AbhyasRoot(app: AbhyasApp) {
             if (currentRoute in NAV_BAR_ROUTES) {
                 val selectedIndex = when (currentRoute) {
                     Tab.Home.route -> 0
-                    Tab.Library.route, "browse", "ncert", "pyq" -> 1
+                    Tab.Library.route, "browse", "chapters/{bookId}", "pyq" -> 1
                     Tab.Progress.route -> 2
                     else -> null
                 }
@@ -130,15 +130,6 @@ fun AbhyasRoot(app: AbhyasApp) {
                     },
                     onCustomPractice = { navController.navigate("setup") { launchSingleTop = true } },
                     onNcertPractice = { navController.navigate("ncertpractice") { launchSingleTop = true } },
-                    onImportPdf = { navController.navigate("pdfstudio") { launchSingleTop = true } },
-                    onNcertConnect = { navController.navigate("ncert") { launchSingleTop = true } },
-                    onImportBank = {
-                        navController.navigate(Tab.Library.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
                 )
             }
         },
@@ -162,7 +153,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onBrowse = { navController.navigate("browse") },
                     onViewAll = { navController.navigate("papers") },
                     onOpenPyq = { navController.navigate("pyq") },
-                    onOpenBook = { navController.navigate("reader/$it") },
+                    onOpenBook = { navController.navigate("chapters/$it") },
                     onOpenSession = { navController.navigate("session/$it") },
                 )
             }
@@ -176,8 +167,13 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onOpenStudio = { navController.navigate("pdfstudio") },
                 )
             }
-            composable("ncert") {
-                NcertScreen(app, onOpenBook = { navController.navigate("reader/$it") }, onPractice = { navController.navigate("ncertpractice") })
+            composable("chapters/{bookId}", arguments = listOf(navArgument("bookId") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("bookId").orEmpty()
+                ChapterListScreen(
+                    app, id,
+                    onOpenChapter = { from, to -> navController.navigate("reader/$id?page=$from&from=$from&to=$to") },
+                    onOpenFullBook = { navController.navigate("reader/$id") },
+                )
             }
             composable("ncertpractice") {
                 NcertPracticeScreen(
@@ -187,11 +183,13 @@ fun AbhyasRoot(app: AbhyasApp) {
                 )
             }
             composable(
-                "reader/{bookId}?page={page}&para={para}",
+                "reader/{bookId}?page={page}&para={para}&from={from}&to={to}",
                 arguments = listOf(
                     navArgument("bookId") { type = NavType.StringType },
                     navArgument("page") { type = NavType.IntType; defaultValue = 0 },
                     navArgument("para") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("from") { type = NavType.IntType; defaultValue = 0 },
+                    navArgument("to") { type = NavType.IntType; defaultValue = 0 },
                 ),
             ) { entry ->
                 ReaderScreen(
@@ -199,6 +197,8 @@ fun AbhyasRoot(app: AbhyasApp) {
                     entry.arguments?.getString("bookId").orEmpty(),
                     entry.arguments?.getInt("page") ?: 0,
                     entry.arguments?.getInt("para") ?: -1,
+                    entry.arguments?.getInt("from") ?: 0,
+                    entry.arguments?.getInt("to") ?: 0,
                     onBack = { navController.popBackStack() },
                 )
             }

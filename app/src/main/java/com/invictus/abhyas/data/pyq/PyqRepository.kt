@@ -61,7 +61,8 @@ class PyqRepository(
     }
 
     /** Fetches any index.json (NCERT, PYQ or an "Other link") and parses it with [PackageIndexParser]. */
-    suspend fun fetchPackageIndex(url: String): ParsedIndex = withContext(Dispatchers.IO) {
+    suspend fun fetchPackageIndex(link: String): ParsedIndex = withContext(Dispatchers.IO) {
+        val url = GitHubLinks.normalize(link)
         require(url.startsWith("https://")) { "The link must start with https://" }
         val conn = URL(url).openConnection() as HttpURLConnection
         try {

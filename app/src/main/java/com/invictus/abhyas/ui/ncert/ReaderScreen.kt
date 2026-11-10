@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -81,7 +82,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
-fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int, onBack: () -> Unit) {
+fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int, from: Int, to: Int, onBack: () -> Unit) {
     val vm: ReaderViewModel = viewModel(key = "reader-$bookId", factory = readerFactory(app, bookId))
     val book by vm.book.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
@@ -98,18 +99,36 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     val aiReady by app.aiGateway.ready.collectAsState(initial = false)
     var initialized by remember { mutableStateOf(false) }
     val pageCount = book?.pageCount ?: 0
-    val current = (listState.firstVisibleItemIndex + 1).coerceIn(1, pageCount.coerceAtLeast(1))
+    val chapterList by vm.chapters.collectAsState()
+    // from/to > 0 = a single chapter; 0 = the whole book. A jump to another chapter switches the range.
+    var rangeFrom by remember { mutableStateOf(from) }
+    var rangeTo by remember { mutableStateOf(to) }
+    val inChapter = rangeFrom > 0 && rangeTo >= rangeFrom && pageCount > 0
+    val first = if (inChapter) rangeFrom.coerceIn(1, pageCount) else 1
+    val last = if (inChapter) rangeTo.coerceIn(first, pageCount) else pageCount
+    val span = (last - first + 1).coerceAtLeast(0)
+    val current = (first + listState.firstVisibleItemIndex).coerceIn(first, last.coerceAtLeast(first))
 
     suspend fun scrollToPassage(page: Int, para: Int) {
         val p = vm.passages(page).firstOrNull { it.idx == para } ?: return
-        val size = snapshotFlow { listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == page - 1 }?.size }.filterNotNull().first()
+        val size = snapshotFlow { listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == page - first }?.size }.filterNotNull().first()
         listState.scrollBy((p.top / p.pageHeight * size - 96f).coerceAtLeast(0f))
     }
 
     fun jump(page: Int, para: Int = -1) {
         scope.launch {
-            listState.scrollToItem((page - 1).coerceIn(0, (pageCount - 1).coerceAtLeast(0)))
-            if (para >= 0) { vm.highlight.value = page to para; scrollToPassage(page, para) }
+            val target = page.coerceIn(1, pageCount.coerceAtLeast(1))
+            if (inChapter && target !in first..last) {
+                val ch = chapterList.firstOrNull { target in it.startPage..it.endPage }
+                rangeFrom = ch?.startPage ?: 0
+                rangeTo = ch?.endPage ?: 0
+                // let the list recompose with the new range before scrolling
+                withFrameNanos { }
+                withFrameNanos { }
+            }
+            val newFirst = if (rangeFrom > 0) rangeFrom else 1
+            listState.scrollToItem((target - newFirst).coerceAtLeast(0))
+            if (para >= 0) { vm.highlight.value = target to para; scrollToPassage(target, para) }
         }
     }
 
@@ -117,14 +136,19 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
         if (pageCount > 0 && !initialized) {
             initialized = true
             val b = book ?: return@LaunchedEffect
-            val page = (if (startPage > 0) startPage else b.lastPage).coerceIn(1, pageCount)
-            listState.scrollToItem(page - 1)
+            val wanted = when {
+                inChapter && startPage == from -> b.lastPage.takeIf { it in first..last } ?: first
+                startPage > 0 -> startPage
+                else -> b.lastPage
+            }
+            val page = wanted.coerceIn(first, last.coerceAtLeast(first))
+            listState.scrollToItem(page - first)
             if (startPage > 0 && startPara >= 0) { vm.highlight.value = page to startPara; scrollToPassage(page, startPara) }
         }
     }
-    LaunchedEffect(pageCount) {
+    LaunchedEffect(pageCount, first) {
         if (pageCount > 0) {
-            snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.index + 1 } }.debounce(1200).collect { pages ->
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.index + first } }.debounce(1200).collect { pages ->
                 if (pages.isNotEmpty()) { vm.markRead(pages); vm.setLastPage(pages.first()) }
             }
         }
@@ -135,7 +159,7 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onBack, shapes = ButtonDefaults.shapes()) { Text("Back") }
                 Column(Modifier.weight(1f)) {
-                    Text(book?.title ?: "", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (inChapter) (chapterList.firstOrNull { it.startPage == first }?.title ?: book?.title ?: "") else (book?.title ?: ""), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     BodyMuted(if (layout != null) "Page ${label(current)} - PDF $current of $pageCount" else "Page $current of $pageCount")
                 }
                 if (aiReady) {
@@ -178,7 +202,7 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BodyMuted(if (book == null) "Book not found." else "Nothing to show yet.") }
                 } else {
                     LazyColumn(Modifier.fillMaxSize(), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(count = pageCount, key = { it }) { i -> PageView(vm, i + 1, widthPx, highlight) { picked = it } }
+                        items(count = span, key = { first + it }) { i -> PageView(vm, first + i, widthPx, highlight) { picked = it } }
                     }
                 }
             }

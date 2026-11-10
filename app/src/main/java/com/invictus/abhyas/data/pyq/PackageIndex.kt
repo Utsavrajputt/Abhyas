@@ -127,7 +127,7 @@ object PackageIndexParser {
         (this["version"] as? JsonPrimitive)?.content?.trim()?.substringBefore('.')?.toIntOrNull()?.coerceAtLeast(1) ?: 1
 }
 
-/** A source the user added in Settings > NCERT & data > Other links. [name] is filled from the link's index.json. */
+/** A source the user added in Settings > Sources. [name] is filled from the link's index.json. */
 @Serializable
 data class IndexLink(val id: String, val name: String, val url: String)
 

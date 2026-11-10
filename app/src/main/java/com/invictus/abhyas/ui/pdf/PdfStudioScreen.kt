@@ -62,7 +62,7 @@ fun PdfStudioScreen(app: AbhyasApp, onOpenJob: (Long) -> Unit) {
     val incoming by app.pendingPaper.collectAsState()
     androidx.compose.runtime.LaunchedEffect(incoming) {
         incoming?.let {
-            hint = it
+            hint = it.takeIf { h -> h.title.isNotBlank() }
             pendingUri = it.uri
             app.pendingPaper.value = null
         }
@@ -73,7 +73,7 @@ fun PdfStudioScreen(app: AbhyasApp, onOpenJob: (Long) -> Unit) {
         if (uri != null) pendingUri = uri
     }
 
-    ExpressiveScreen("PDF Studio", "Turn PDFs into reviewed question banks, offline") {
+    ExpressiveScreen("Paper from PDF", "Turn a question paper into a reviewed question bank, offline") {
         Button(
             onClick = { picker.launch(arrayOf("application/pdf")) },
             enabled = !adding,

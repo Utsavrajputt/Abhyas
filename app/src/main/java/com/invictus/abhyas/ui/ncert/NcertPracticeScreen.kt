@@ -54,7 +54,7 @@ fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onOpenSetting
 
     ExpressiveScreen("NCERT practice", "Questions made from your books") {
         if (ui.books.isEmpty()) {
-            BodyMuted("Add a book in NCERT Connect first. Practice is made from its text, so scanned books cannot be used.")
+            BodyMuted("Add a book in Library > Packages first. Practice is made from its text, so scanned books cannot be used.")
             return@ExpressiveScreen
         }
 

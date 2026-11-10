@@ -4,6 +4,12 @@ All notable changes to Abhyas. Versions follow `versionName` in `app/build.gradl
 
 ## [Unreleased] - xmd-style UI
 
+### Packages screen redesign
+- Removed the built-in "NCERT textbooks (official site)" downloader (books now come from your index link, as chapter zips or PDFs).
+- Offline: one "Add from your phone" card (Zip / PDF / Folder), Books and Question banks in separate groups, installed books show status, pages and size, failed ones have Retry, nicer empty states.
+- Online: compact cards (download icon, live Downloading / Preparing for search status, Retry), grouped by subject, search box when there are many packages, "Download all" in each source header.
+- Adding a link and "Find PDFs on a web page" moved into the "+" menu; saved links appear under "My links".
+
 ### Chapter-zip books and "Page N" on answers
 - Packages > Online: a book entry may point to a zip of NCERT chapter PDFs (`keph101.pdf` ... `keph1ps.pdf` prelims, `keph1a1.pdf` appendices, `keph1an.pdf` answers). The app verifies the SHA-256, merges the files in book order and reads every chapter name from the first page (Contents lists Prelims, Ch 1..N, Appendices, Answers).
 - Pages show the number printed in the textbook (read from the page headers; roman numerals in the prelims). The Reader header, Contents, bookmarks and search show it, with the PDF page beside it in the header.
