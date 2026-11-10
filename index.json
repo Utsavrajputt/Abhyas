@@ -2,6 +2,39 @@
   "name": "Abhyas packages",
   "packages": [
     {
+      "id": "ncert-11-biology",
+      "name": "NCERT Biology Class 11",
+      "version": 1,
+      "type": "book",
+      "subject": "Biology",
+      "class": 11,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-11-biology.zip",
+      "sha256": "d84985a32fade9e79399c0ef56dfd5643f49ec40ce7ca02f436929b2b98d3c0e",
+      "sizeBytes": 57009592
+    },
+    {
+      "id": "ncert-11-chemistry-1",
+      "name": "NCERT Chemistry Class 11 Part 1",
+      "version": 1,
+      "type": "book",
+      "subject": "Chemistry",
+      "class": 11,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-11-chemistry-1.zip",
+      "sha256": "8f9cf8d1147a217fc0f3f04394c599f5a9d54fb009531f2febe795c21171c188",
+      "sizeBytes": 29199422
+    },
+    {
+      "id": "ncert-11-chemistry-2",
+      "name": "NCERT Chemistry Class 11 Part 2",
+      "version": 1,
+      "type": "book",
+      "subject": "Chemistry",
+      "class": 11,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-11-chemistry-2.zip",
+      "sha256": "0f9c03d266e6d0a8f55938af39df0e599078e580b2cf1dd10de2aa656b42c676",
+      "sizeBytes": 10393304
+    },
+    {
       "id": "ncert-11-physics-1",
       "name": "NCERT Physics Class 11 Part 1",
       "version": 1,
@@ -11,6 +44,61 @@
       "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-11-physics-1.zip",
       "sha256": "a18dd2a7457faa460eaf3b906e59195df766193f18c20af2e393d6a569cff072",
       "sizeBytes": 19670879
+    },
+    {
+      "id": "ncert-11-physics-2",
+      "name": "NCERT Physics Class 11 Part 2",
+      "version": 1,
+      "type": "book",
+      "subject": "Physics",
+      "class": 11,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-11-physics-2.zip",
+      "sha256": "964a56a3287b41e225a6970fac87573a3cac32e139899f6682b304ca0be0ecdf",
+      "sizeBytes": 13834248
+    },
+    {
+      "id": "ncert-12-biology",
+      "name": "NCERT Biology Class 12",
+      "version": 1,
+      "type": "book",
+      "subject": "Biology",
+      "class": 12,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-12-biology.zip",
+      "sha256": "ac5d6b9c58dda2ba54954951ffcf706efddd8719da21b79e64f6a37875b0e299",
+      "sizeBytes": 160520741
+    },
+    {
+      "id": "ncert-12-chemistry-1",
+      "name": "NCERT Chemistry Class 12 Part 1",
+      "version": 1,
+      "type": "book",
+      "subject": "Chemistry",
+      "class": 12,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-12-chemistry-1.zip",
+      "sha256": "e6ce7720de2c388642ce8e7d62f25449ecc03f165090c6c3ddf331d339a17d22",
+      "sizeBytes": 22674746
+    },
+    {
+      "id": "ncert-12-chemistry-2",
+      "name": "NCERT Chemistry Class 12 Part 2",
+      "version": 1,
+      "type": "book",
+      "subject": "Chemistry",
+      "class": 12,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-12-chemistry-2.zip",
+      "sha256": "cbcf498736d13a99cdc06afecbeb2dced7ad238a6a297a75cc27613fe30baa96",
+      "sizeBytes": 20494069
+    },
+    {
+      "id": "ncert-12-physics-1",
+      "name": "NCERT Physics Class 12 Part 1",
+      "version": 1,
+      "type": "book",
+      "subject": "Physics",
+      "class": 12,
+      "url": "https://github.com/Utsavrajputt/Abhyas/releases/download/books-v1/ncert-12-physics-1.zip",
+      "sha256": "f104fb717047d5578e78e18a024f2fe2317430f7c15ba31d347fa833863b5421",
+      "sizeBytes": 22543941
     },
     {
       "id": "ncert-12-physics-2",
