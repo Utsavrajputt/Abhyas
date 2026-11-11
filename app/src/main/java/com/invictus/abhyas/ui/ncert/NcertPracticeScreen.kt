@@ -63,16 +63,13 @@ fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onOpenSetting
         // Subject -> book -> chapter, each narrowing the next. The first subject and book are preselected.
         val subjects = ui.books.map { it.subject }.distinct()
         if (subjects.size > 1) {
-            SectionTitle("Subject")
             ConnectedToggleGroup(subjects, subjects.indexOf(ui.subject).coerceAtLeast(0)) { vm.selectSubject(subjects[it]) }
         }
         val booksOfSubject = ui.books.filter { it.subject == ui.subject }
-        SectionTitle("Book")
         FilterDropdown("Book", booksOfSubject.map { it.title }, book?.title) { title ->
             vm.selectBook(booksOfSubject.firstOrNull { it.title == title }?.id)
         }
         if (book != null) {
-            SectionTitle("Chapter")
             val chapterNames = listOf("Whole book") + ui.chapters.map { it.title }
             FilterDropdown("Chapter", chapterNames, chapterNames.getOrNull(ui.chapterIdx + 1)) { title ->
                 vm.selectChapter(chapterNames.indexOf(title) - 1)
@@ -81,15 +78,12 @@ fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onOpenSetting
         }
 
         SectionTitle("Question types")
-        // Compact chips: the long explanation of each type is one tap away in the hint below.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GenKind.entries.filter { !it.needsAi || ui.aiReady }.forEach { kind ->
                 FilterChip(selected = kind in ui.kinds, onClick = { vm.toggle(kind) }, label = { Text(kind.label.removeSuffix(" (AI)")) },
                     leadingIcon = if (kind.needsAi) ({ Text("AI", style = MaterialTheme.typography.labelSmall) }) else null)
             }
         }
-        val shownKinds = ui.kinds.toList()
-        if (shownKinds.isNotEmpty()) BodyMuted(shownKinds.joinToString("\n") { "${it.label}: ${KIND_HELP.getValue(it)}" })
         if (!ui.aiReady) {
             BodyMuted("AI question types need AI turned on and your Gemini API key saved in Settings.")
             TextButton(onClick = onOpenSettings) { Text("Open AI settings") }

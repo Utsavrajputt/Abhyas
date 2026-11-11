@@ -109,34 +109,6 @@ fun SetupScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onDismiss: () -> Unit
 
         if (starting) LoadingIndicator()
 
-        if (templates.isNotEmpty()) {
-            SectionTitle("Full tests")
-            BodyMuted("Timed, with the exam's marking scheme. Templates are JSON files in app assets.")
-            templates.forEach { t ->
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(t.name, style = MaterialTheme.typography.titleMediumEmphasized)
-                        BodyMuted(
-                            listOfNotNull(
-                                "${t.totalQuestions} questions",
-                                t.durationMinutes?.let { "$it min" },
-                                t.marking?.let { "+${trimNum(it.correct)} / -${trimNum(it.wrong)}" },
-                            ).joinToString(" - "),
-                        )
-                        Row {
-                            FilledTonalButton(
-                                onClick = {
-                                    starting = true
-                                    scope.launch { handle(app.attemptRepository.startTemplate(t)) }
-                                },
-                                enabled = !starting,
-                                shapes = ButtonDefaults.shapes(),
-                            ) { Text("Start test") }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     message?.let {

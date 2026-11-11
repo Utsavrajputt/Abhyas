@@ -4,7 +4,13 @@ package com.invictus.abhyas.ui.progress
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -164,19 +170,36 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyTab(
 ) {
     if (history.isEmpty()) { item { BodyMuted("No completed tests yet.") }; return }
     items(history, key = { it.id }) { a ->
-        ElevatedCard(Modifier.fillMaxWidth().clickable { onOpen(a.id) }) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(a.title, style = MaterialTheme.typography.titleMediumEmphasized)
-                    BodyMuted(fmtDate(a.startedAt))
-                    val answered = a.correctCount + a.wrongCount
-                    BodyMuted(
-                        "${fmtMarks(a.score)}/${fmtMarks(a.maxScore)} - " +
-                            "${if (answered == 0) "0%" else pct(a.correctCount.toDouble() / answered)} accuracy - " +
-                            "${a.correctCount} right, ${a.wrongCount} wrong, ${a.unattemptedCount} skipped",
+        val answered = a.correctCount + a.wrongCount
+        val acc = if (answered == 0) 0.0 else a.correctCount.toDouble() / answered
+        val ac = accuracyColor(acc)
+        // "NCERT practice: NCERT Physics Class 11 Part 1" -> kind label above, short name as the title.
+        val kind = when {
+            a.title.startsWith("NCERT practice: ") -> "NCERT practice"
+            a.title.startsWith("Daily practice") -> "Daily practice"
+            else -> "Practice"
+        }
+        val name = a.title.removePrefix("NCERT practice: ").removePrefix("NCERT ").let { if (kind == "Daily practice") a.title.removePrefix("Daily practice - ") else it }
+        Surface(Modifier.fillMaxWidth().clickable { onOpen(a.id) }, shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+            Row(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(52.dp).clip(CircleShape).background(ac.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                    Text(pct(acc), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = ac)
+                }
+                Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(kind, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${a.correctCount} right", style = MaterialTheme.typography.labelMedium, color = ProgGood)
+                        Text("${a.wrongCount} wrong", style = MaterialTheme.typography.labelMedium, color = ProgBad)
+                        Text("${a.unattemptedCount} skipped", style = MaterialTheme.typography.labelMedium, color = ProgWarn)
+                    }
+                    Text(
+                        "${fmtMarks(a.score)}/${fmtMarks(a.maxScore)} marks - ${fmtDate(a.startedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { onDelete(a) }) { Icon(Icons.Outlined.Delete, contentDescription = "Delete result") }
+                IconButton(onClick = { onDelete(a) }) { Icon(Icons.Outlined.Delete, contentDescription = "Delete result", modifier = Modifier.size(20.dp)) }
             }
         }
     }

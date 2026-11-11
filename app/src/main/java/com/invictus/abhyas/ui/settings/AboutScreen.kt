@@ -62,7 +62,7 @@ import com.invictus.abhyas.ui.theme.AbhyasShapes
 internal object AboutInfo {
     const val APP_NAME = "Abhyas"
     const val TAGLINE = "Learn. Practice. Improve."
-    const val GITHUB_URL = "https://github.com/Utsavrajputt/xmd"
+    const val GITHUB_URL = "https://github.com/Utsavrajputt/Abhyas"
     const val UPI_ID = "utsavrajput@yesfam"
     const val UPI_PAYEE = "Utsav%20Rajput"
     const val SUPPORT_BODY =

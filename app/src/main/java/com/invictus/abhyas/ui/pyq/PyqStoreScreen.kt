@@ -113,7 +113,17 @@ fun PyqStoreScreen(app: AbhyasApp, onOpenSettings: () -> Unit, onOpenStudio: () 
             ) { _, dx -> total += dx }
         },
     ) {
-        PillTabs(listOf("Online", "Offline"), tab) { tab = it }
+        androidx.compose.material3.SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            listOf("Online", "Offline").forEachIndexed { i, label ->
+                androidx.compose.material3.SegmentedButton(
+                    selected = tab == i,
+                    onClick = { tab = i },
+                    shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(index = i, count = 2),
+                    icon = { androidx.compose.material3.SegmentedButtonDefaults.Icon(active = tab == i) },
+                    label = { Text(label) },
+                )
+            }
+        }
         AnimatedContent(
             targetState = tab,
             transitionSpec = {

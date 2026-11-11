@@ -42,7 +42,7 @@ fun PracticeDialog(title: String, onDismiss: () -> Unit, content: @Composable Co
                 }
                 Column(
                     Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     content = content,
                 )
             }

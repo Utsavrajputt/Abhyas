@@ -31,11 +31,11 @@ data class GitHubContributor(
  */
 object GitHubContributorsRepository {
 
-    private const val API_URL = "https://api.github.com/repos/Utsavrajputt/xmd/contributors"
+    private const val API_URL = "https://api.github.com/repos/Utsavrajputt/Abhyas/contributors"
     private const val PER_PAGE = 100
     private const val MAX_PAGES = 3
     private const val CACHE_TTL_MS = 72L * 60L * 60L * 1000L
-    private const val CACHE_FILE_NAME = "github_contributors.json"
+    private const val CACHE_FILE_NAME = "github_contributors_abhyas.json"
     private const val TIMEOUT_MS = 8_000
 
     private class CacheEntry(val fetchedAtMs: Long, val items: List<GitHubContributor>)

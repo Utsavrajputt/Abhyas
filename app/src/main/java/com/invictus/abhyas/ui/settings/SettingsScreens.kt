@@ -82,8 +82,7 @@ fun SettingsRootScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            DailyPracticeCard(app)
-            Column(modifier = Modifier.padding(top = 16.dp)) {
+            Column {
             SettingsSectionCard {
                 CategoryRow(
                     icon = AppIcons.School,
@@ -288,6 +287,7 @@ fun ExamSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
                 "Home, the Library, the previous-year papers store and the default filters in Browse and " +
                     "Custom practice show only the selected exam. Progress keeps showing all your attempts.",
             )
+            DailyPracticeCard(app)
         }
     }
 }
