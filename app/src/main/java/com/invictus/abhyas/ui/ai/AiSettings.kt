@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -115,7 +119,7 @@ fun AiSettingsSection(app: AbhyasApp, model: String) {
     // The saved id stays selectable even when it is missing from the list (it may be why requests fail).
     val options = remember(models, model) { if (model.isNotBlank() && model !in models) listOf(model) + models else models }
     if (!manual && options.isNotEmpty()) {
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        Box(Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = model,
                 onValueChange = {},
@@ -126,10 +130,12 @@ fun AiSettingsSection(app: AbhyasApp, model: String) {
                     Text(if (models.isNotEmpty() && !known) "Not in your key's model list: requests may fail with \"model not found\"." else "${models.size} models available for your key")
                 },
                 isError = models.isNotEmpty() && model !in models,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                trailingIcon = { Icon(if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
             )
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            // Transparent layer on top: a read-only text field swallows taps, so the click is taken here.
+            Box(Modifier.matchParentSize().clickable { expanded = true })
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { id ->
                     DropdownMenuItem(
                         text = { Text(id) },
