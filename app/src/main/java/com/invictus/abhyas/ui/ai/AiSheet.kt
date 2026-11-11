@@ -92,7 +92,7 @@ fun AiSheet(app: AbhyasApp, request: AiRequestUi, onDismiss: () -> Unit) {
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
     ) {
         Column(
             Modifier

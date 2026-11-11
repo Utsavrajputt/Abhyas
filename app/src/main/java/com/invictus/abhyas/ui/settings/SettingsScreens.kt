@@ -67,6 +67,7 @@ fun SettingsScaffold(
 /** Root of Settings: xmd-style category rows (Appearance, AI, NCERT & Data) and About. */
 @Composable
 fun SettingsRootScreen(
+    app: AbhyasApp,
     onBack: () -> Unit,
     onOpenExam: () -> Unit,
     onOpenAppearance: () -> Unit,
@@ -81,6 +82,8 @@ fun SettingsRootScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
+            DailyPracticeCard(app)
+            Column(modifier = Modifier.padding(top = 16.dp)) {
             SettingsSectionCard {
                 CategoryRow(
                     icon = AppIcons.School,
@@ -111,6 +114,7 @@ fun SettingsRootScreen(
                     isLast = true,
                     onClick = onOpenData,
                 )
+            }
             }
             Column(modifier = Modifier.padding(top = 16.dp)) {
                 SettingsSectionCard {
@@ -284,6 +288,38 @@ fun ExamSettingsScreen(app: AbhyasApp, onBack: () -> Unit) {
                 "Home, the Library, the previous-year papers store and the default filters in Browse and " +
                     "Custom practice show only the selected exam. Progress keeps showing all your attempts.",
             )
+        }
+    }
+}
+
+/** Daily practice options: on/off, how many questions, whether numericals are mixed in. */
+@Composable
+private fun DailyPracticeCard(app: AbhyasApp) {
+    val store = app.settingsStore
+    val settings by store.settings.collectAsState(initial = UserSettings())
+    val scope = rememberCoroutineScope()
+    val counts = listOf(10, 20, 30, 50)
+    SettingsSectionCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)) {
+        SwitchSettingRow(
+            title = "Daily practice",
+            subtitle = "A new random set on Home every day, with a streak",
+            checked = settings.dailyEnabled,
+            onCheckedChange = { scope.launch { store.setDailyEnabled(it) } },
+        )
+        if (settings.dailyEnabled) {
+            SwitchSettingRow(
+                title = "Include numericals",
+                subtitle = "Off: theory questions only",
+                checked = settings.dailyNumerical,
+                onCheckedChange = { scope.launch { store.setDailyNumerical(it) } },
+            )
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Questions per day", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                com.invictus.abhyas.ui.screens.ConnectedToggleGroup(
+                    items = counts.map { it.toString() },
+                    selected = counts.indexOf(settings.dailyCount),
+                ) { i -> scope.launch { store.setDailyCount(counts[i]) } }
+            }
         }
     }
 }

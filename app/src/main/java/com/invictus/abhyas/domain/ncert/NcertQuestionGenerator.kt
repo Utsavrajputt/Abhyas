@@ -42,7 +42,7 @@ object NcertQuestionGenerator {
             out += make(
                 ctx, t.source, QuestionType.FILL_BLANK, stem,
                 FillBlankPayload(acceptedAnswers = answers, caseSensitive = false),
-                explanation = "Answer: ${t.term}. NCERT page ${t.source.page}: \"${t.sentence}\"",
+                explanation = "Answer: ${t.term}. NCERT page ${t.source.pageLabel}: \"${t.sentence}\"",
             ) ?: continue
         }
         return out
@@ -60,10 +60,10 @@ object NcertQuestionGenerator {
             val tryFalse = falses.size < max && (falses.size <= trues.size || trues.size >= max)
             val wrong = if (tryFalse) falsify(s, termPool, random) else null
             if (wrong != null) {
-                make(ctx, p, QuestionType.TRUE_FALSE, wrong, TrueFalsePayload(false), "False. NCERT page ${p.page} says: \"$s\"")
+                make(ctx, p, QuestionType.TRUE_FALSE, wrong, TrueFalsePayload(false), "False. NCERT page ${p.pageLabel} says: \"$s\"")
                     ?.let { falses += it }
             } else if (trues.size < max) {
-                make(ctx, p, QuestionType.TRUE_FALSE, s, TrueFalsePayload(true), "True. NCERT page ${p.page}.")
+                make(ctx, p, QuestionType.TRUE_FALSE, s, TrueFalsePayload(true), "True. NCERT page ${p.pageLabel}.")
                     ?.let { trues += it }
             }
         }

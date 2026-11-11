@@ -49,7 +49,7 @@ private val COUNTS = listOf(10, 20, 40, 60)
 private val TIMERS = listOf<Int?>(null, 15, 30, 60)
 
 @Composable
-fun SetupScreen(app: AbhyasApp, onStarted: (Long) -> Unit) {
+fun SetupScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onDismiss: () -> Unit = {}) {
     val vm: BrowseViewModel = viewModel(key = "setup", factory = appViewModelFactory(app))
     val filter by vm.filter.collectAsState()
     val matching by vm.count.collectAsState()
@@ -73,7 +73,7 @@ fun SetupScreen(app: AbhyasApp, onStarted: (Long) -> Unit) {
         }
     }
 
-    ExpressiveScreen("Custom practice", "Choose what to practise") {
+    com.invictus.abhyas.ui.components.PracticeDialog("Custom practice", onDismiss) {
         SectionTitle("Mode")
         FilterDropdown("Mode", PracticeMode.entries.map { it.label }, mode.label.takeIf { mode != PracticeMode.CUSTOM }) { v ->
             mode = PracticeMode.entries.firstOrNull { it.label == v } ?: PracticeMode.CUSTOM

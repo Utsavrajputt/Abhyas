@@ -42,28 +42,25 @@ import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.domain.model.Question
 import com.invictus.abhyas.domain.query.QuestionFilter
 import com.invictus.abhyas.ui.icons.AppIcons
+import com.invictus.abhyas.data.local.AttemptEntity
+import com.invictus.abhyas.domain.attempt.DailyPractice
+import com.invictus.abhyas.domain.query.KindFilter
+import java.time.LocalDate
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import com.invictus.abhyas.ui.theme.AbhyasShapes
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-/** Subjects of an exam as (label, subject names used in question banks). Biology also covers Botany/Zoology. */
-private fun Exam.subjectGroups(): List<Pair<String, List<String>>> = when (this) {
-    Exam.NEET -> listOf(
-        "Physics" to listOf("Physics"),
-        "Chemistry" to listOf("Chemistry"),
-        "Biology" to listOf("Biology", "Botany", "Zoology"),
-    )
-    Exam.JEE_MAIN -> listOf(
-        "Physics" to listOf("Physics"),
-        "Chemistry" to listOf("Chemistry"),
-        "Mathematics" to listOf("Mathematics", "Maths"),
-    )
-}
-
 /**
- * Home: today's three-question practice (one random question per subject of the exam chosen in
- * Settings; the same three all day), quick practice, resume. When there are no questions it points
- * to the downloads and the question-bank import.
+ * Home: the daily set on top (random questions, new every day, with a streak), then quick practice
+ * and the unfinished test. With no questions it points to the downloads and the bank import.
  */
 @Composable
 fun HomeScreen(
@@ -71,93 +68,115 @@ fun HomeScreen(
     onOpenSession: (Long) -> Unit,
     onImportBank: () -> Unit,
     onOpenPyq: () -> Unit,
+    onOpenResult: (Long) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val settings by app.settingsStore.settings.collectAsState(initial = UserSettings())
     val exam = settings.exam
     val inProgress by app.attemptRepository.observeInProgress().collectAsState(initial = null)
+    val history by app.database.attemptDao().observeHistory().collectAsState(initial = emptyList())
     val total: Int? by remember(exam) { app.questionRepository.observeCount(QuestionFilter(exam = exam)) }
         .collectAsState<Int, Int?>(initial = null)
-    var today by remember { mutableStateOf<List<Question>>(emptyList()) }
+    var daily by remember { mutableStateOf<List<Question>>(emptyList()) }
     var message by remember { mutableStateOf<String?>(null) }
+    val today = remember { LocalDate.now() }
 
-    // One random question per subject, stable for the day (changes at midnight or when questions change).
-    LaunchedEffect(exam, total) {
-        val day = System.currentTimeMillis() / 86_400_000L
-        val picked = ArrayList<String>()
-        exam.subjectGroups().forEach { (label, names) ->
-            val ids = names.flatMap { app.questionRepository.matchingIds(QuestionFilter(exam = exam, subject = it)) }
-                .distinct()
-                .sorted()
-            if (ids.isNotEmpty()) {
-                picked += ids[Random(day * 31L + label.hashCode()).nextInt(ids.size)]
-            }
-        }
-        today = if (picked.isEmpty()) emptyList() else app.questionRepository.load(picked)
+    // The set depends only on the date, the exam and the settings, so it is stable all day.
+    LaunchedEffect(exam, total, settings.dailyNumerical, settings.dailyCount, settings.dailyEnabled) {
+        if (!settings.dailyEnabled) { daily = emptyList(); return@LaunchedEffect }
+        val kind = if (settings.dailyNumerical) KindFilter.ALL else KindFilter.THEORY
+        val ids = app.questionRepository.matchingIds(QuestionFilter(exam = exam, kind = kind))
+        daily = app.questionRepository.load(DailyPractice.pick(ids, today, settings.dailyCount))
     }
 
+    val doneDays = remember(history) { history.mapNotNull { DailyPractice.dayOf(it.title) }.toSet() }
+    val todaysDone = remember(history) { history.firstOrNull { DailyPractice.dayOf(it.title) == today } }
+    val todaysOpen = inProgress?.takeIf { DailyPractice.dayOf(it.title) == today }
+    val streak = DailyPractice.streak(doneDays, today)
+
     ExpressiveScreen("Abhyas", "Learn. Practice. Improve.") {
-        if (today.isNotEmpty()) {
-            TodayCard(
-                questions = today,
+        if (settings.dailyEnabled && daily.isNotEmpty()) {
+            DailyCard(
+                count = daily.size,
+                numerical = settings.dailyNumerical,
+                streak = streak,
+                week = (6 downTo 0).map { today.minusDays(it.toLong()) }.map { it to (it in doneDays) },
+                done = todaysDone,
+                inProgress = todaysOpen,
                 onStart = {
                     scope.launch {
-                        when (val r = app.attemptRepository.startFromQuestions("Today's practice", PracticeMode.QUICK.name, today)) {
+                        when (val r = app.attemptRepository.startFromQuestions(DailyPractice.title(today), PracticeMode.QUICK.name, daily)) {
                             is StartResult.Started -> onOpenSession(r.attemptId)
                             is StartResult.Failed -> message = r.message
                         }
                     }
                 },
+                onResume = { todaysOpen?.let { onOpenSession(it.id) } },
+                onResult = { todaysDone?.let { onOpenResult(it.id) } },
             )
         }
 
+        message?.let { BodyMuted(it) }
+        inProgress?.takeIf { DailyPractice.dayOf(it.title) != today }?.let { a -> ContinueCard(app, a.id, a.title, a.currentIndex, onOpenSession) }
+
         if ((total ?: 0) > 0) {
-            FilledTonalButton(
-                onClick = {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                QuickTile(
+                    title = "Quick 20",
+                    subtitle = "Random mix",
+                    container = MaterialTheme.colorScheme.secondaryContainer,
+                    content = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.weight(1f),
+                ) {
                     scope.launch {
-                        when (val r = app.attemptRepository.startPractice(
-                            PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = exam), 20),
-                        )) {
+                        when (val r = app.attemptRepository.startPractice(PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = exam), 20))) {
                             is StartResult.Started -> onOpenSession(r.attemptId)
                             is StartResult.Failed -> message = r.message
                         }
                     }
-                },
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(AppIcons.Play, contentDescription = null)
-                Spacer(Modifier.size(8.dp))
-                Text("Quick practice - 20 questions")
+                }
+                QuickTile(
+                    title = "Theory 10",
+                    subtitle = "Short round",
+                    container = MaterialTheme.colorScheme.tertiaryContainer,
+                    content = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    scope.launch {
+                        when (val r = app.attemptRepository.startPractice(PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = exam, kind = KindFilter.THEORY), 10))) {
+                            is StartResult.Started -> onOpenSession(r.attemptId)
+                            is StartResult.Failed -> message = r.message
+                        }
+                    }
+                }
             }
         }
-
-        message?.let { BodyMuted(it) }
-        inProgress?.let { a -> ContinueCard(app, a.id, a.title, a.currentIndex, onOpenSession) }
 
         if (total == 0) {
             SectionTitle("Get questions to practise")
             BodyMuted("No ${exam.name.replace('_', ' ')} questions yet. Open Packages for books and previous-year papers, or import a question bank.")
-            Button(
-                onClick = onOpenPyq,
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            Button(onClick = onOpenPyq, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
                 Icon(AppIcons.Package, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
                 Text("Packages")
             }
-            FilledTonalButton(
-                onClick = onImportBank,
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Import a question bank") }
+            FilledTonalButton(onClick = onImportBank, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Import a question bank") }
         }
     }
 }
 
 @Composable
-private fun TodayCard(questions: List<Question>, onStart: () -> Unit) {
+private fun DailyCard(
+    count: Int,
+    numerical: Boolean,
+    streak: Int,
+    week: List<Pair<LocalDate, Boolean>>,
+    done: AttemptEntity?,
+    inProgress: AttemptEntity?,
+    onStart: () -> Unit,
+    onResume: () -> Unit,
+    onResult: () -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
@@ -166,51 +185,83 @@ private fun TodayCard(questions: List<Question>, onStart: () -> Unit) {
             .background(Brush.linearGradient(listOf(cs.primaryContainer, cs.tertiaryContainer)))
             .padding(20.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    "Today's practice",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = cs.onPrimaryContainer,
-                )
-                Text(
-                    "${questions.size} questions, one from each subject",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = cs.onPrimaryContainer.copy(alpha = 0.85f),
-                )
-            }
-            questions.forEach { q ->
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier.padding(top = 7.dp).size(8.dp).clip(CircleShape).background(cs.primary),
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Daily $count", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = cs.onPrimaryContainer)
+                    Text(
+                        if (numerical) "Theory + numerical, new every day" else "Theory questions, new every day",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = cs.onPrimaryContainer.copy(alpha = 0.85f),
                     )
-                    Column(modifier = Modifier.weight(1f)) {
+                }
+                Surface(shape = RoundedCornerShape(50), color = cs.primary) {
+                    Text(
+                        "\uD83D\uDD25 $streak",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = cs.onPrimary,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            // Last seven days: filled = the daily set was finished that day.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                week.forEach { (day, ok) ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(
+                            Modifier.size(28.dp).clip(CircleShape)
+                                .background(if (ok) cs.primary else cs.onPrimaryContainer.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) { if (ok) Text("\u2713", color = cs.onPrimary, style = MaterialTheme.typography.labelMedium) }
                         Text(
-                            q.subject,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = cs.onPrimaryContainer,
-                        )
-                        Text(
-                            q.statement.replace(Regex("\\s+"), " ").trim(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = cs.onPrimaryContainer.copy(alpha = 0.8f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                            day.dayOfWeek.name.take(1),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = cs.onPrimaryContainer.copy(alpha = if (day == week.last().first) 1f else 0.7f),
+                            fontWeight = if (day == week.last().first) FontWeight.Bold else FontWeight.Normal,
                         )
                     }
                 }
             }
-            Button(
-                onClick = onStart,
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(AppIcons.Play, contentDescription = null)
-                Spacer(Modifier.size(8.dp))
-                Text("Start today's practice")
+            when {
+                done != null -> {
+                    Text(
+                        "Done today: ${done.correctCount}/${done.correctCount + done.wrongCount + done.unattemptedCount} correct. Come back tomorrow to keep the streak.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = cs.onPrimaryContainer,
+                    )
+                    OutlinedButton(onClick = onResult, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("View result") }
+                }
+                inProgress != null -> Button(onClick = onResume, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                    Icon(AppIcons.Play, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Resume today's $count")
+                }
+                else -> Button(onClick = onStart, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                    Icon(AppIcons.Play, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Start today's $count")
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun QuickTile(
+    title: String,
+    subtitle: String,
+    container: Color,
+    content: Color,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(onClick = onClick, modifier = modifier, shape = AbhyasShapes.L, color = container) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Icon(AppIcons.Play, contentDescription = null, tint = content)
+            Spacer(Modifier.height(6.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = content)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = content.copy(alpha = 0.8f))
         }
     }
 }

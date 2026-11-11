@@ -37,6 +37,14 @@ sealed interface AiResult {
 /** One model backend. Implementations must never put the API key in a URL, log line or error message. */
 interface AiProvider {
     suspend fun generate(prompt: AiPrompt, model: String, apiKey: String): AiResult
+
+    /** Model ids this key can use for text generation. Providers that cannot list models keep the default. */
+    suspend fun listModels(apiKey: String): ModelsResult = ModelsResult.Failure("This provider cannot list models.")
+}
+
+sealed interface ModelsResult {
+    data class Models(val ids: List<String>) : ModelsResult
+    data class Failure(val message: String) : ModelsResult
 }
 
 object AiDefaults {

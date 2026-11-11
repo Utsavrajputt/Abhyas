@@ -33,6 +33,7 @@ val PRACTICE_COUNTS = listOf(5, 10, 20, 30)
 
 data class PracticeUi(
     val books: List<BookEntity> = emptyList(),
+    val subject: String? = null,
     val bookId: String? = null,
     val chapters: List<BookChapterEntity> = emptyList(),
     /** -1 = the whole book. */
@@ -57,20 +58,34 @@ class NcertPracticeViewModel(private val app: AbhyasApp) : ViewModel() {
                 .collect { (books, ai) ->
                     _ui.update { cur ->
                         val keep = cur.bookId?.takeIf { id -> books.any { it.id == id } }
+                        val subject = cur.subject?.takeIf { sub -> books.any { it.subject == sub } } ?: books.firstOrNull()?.subject
                         val kinds = if (ai) cur.kinds else cur.kinds.filterNot { it.needsAi }.toSet()
-                        cur.copy(books = books, aiReady = ai, kinds = kinds, bookId = keep, chapters = if (keep == null) emptyList() else cur.chapters)
+                        cur.copy(books = books, subject = subject, aiReady = ai, kinds = kinds, bookId = keep, chapters = if (keep == null) emptyList() else cur.chapters)
                     }
-                    if (_ui.value.bookId == null && books.size == 1) selectBook(books.first().id)
+                    if (_ui.value.bookId == null) {
+                        val first = books.firstOrNull { it.subject == _ui.value.subject } ?: books.firstOrNull()
+                        first?.let { selectBook(it.id) }
+                    }
                 }
         }
     }
 
+    private var chaptersJob: kotlinx.coroutines.Job? = null
+
+    fun selectSubject(subject: String) {
+        _ui.update { it.copy(subject = subject) }
+        _ui.value.books.firstOrNull { it.subject == subject }?.let { selectBook(it.id) }
+    }
+
     fun selectBook(id: String?) {
+        chaptersJob?.cancel()
         _ui.update { it.copy(bookId = id, chapters = emptyList(), chapterIdx = -1, message = null) }
         if (id == null) return
-        viewModelScope.launch {
-            val chapters = repo.chapters(id)
-            _ui.update { if (it.bookId == id) it.copy(chapters = chapters) else it }
+        // Observed, not read once: chapters can be written after the book first shows as ready.
+        chaptersJob = viewModelScope.launch {
+            repo.observeChapters(id).collect { chapters ->
+                _ui.update { if (it.bookId == id) it.copy(chapters = chapters, chapterIdx = it.chapterIdx.takeIf { i -> i < chapters.size } ?: -1) else it }
+            }
         }
     }
 
@@ -116,7 +131,7 @@ class NcertPracticeViewModel(private val app: AbhyasApp) : ViewModel() {
         val from = chapter?.startPage ?: 1
         val to = chapter?.endPage ?: book.pageCount
         val passages = withContext(Dispatchers.IO) {
-            repo.passagesInRange(book.id, from, to).map { SourcePassage(book.id, it.page, it.idx, it.text, it.textHash, chapter?.title) }
+            repo.passagesInRange(book.id, from, to).map { SourcePassage(book.id, it.page, it.idx, it.text, it.textHash, chapter?.title, repo.pageLabel(book.id, it.page)) }
         }
         if (passages.isEmpty()) {
             return Built("This ${if (chapter != null) "chapter" else "book"} has no readable text yet. Scanned books cannot be used, and indexing may still be running.", emptyList(), emptyList())

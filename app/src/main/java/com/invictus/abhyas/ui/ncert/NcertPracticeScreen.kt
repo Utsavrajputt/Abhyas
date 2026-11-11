@@ -1,9 +1,11 @@
-@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.invictus.abhyas.ui.ncert
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -47,38 +49,51 @@ private fun KindRow(kind: GenKind, checked: Boolean, enabled: Boolean, onToggle:
 }
 
 @Composable
-fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onOpenSettings: () -> Unit = {}) {
+fun NcertPracticeScreen(app: AbhyasApp, onStarted: (Long) -> Unit, onOpenSettings: () -> Unit = {}, onDismiss: () -> Unit = {}) {
     val vm: NcertPracticeViewModel = viewModel(factory = ncertPracticeFactory(app))
     val ui by vm.ui.collectAsState()
     val book = ui.books.firstOrNull { it.id == ui.bookId }
 
-    ExpressiveScreen("NCERT practice", "Questions made from your books") {
+    com.invictus.abhyas.ui.components.PracticeDialog("NCERT practice", onDismiss) {
         if (ui.books.isEmpty()) {
             BodyMuted("Add a book in Library > Packages first. Practice is made from its text, so scanned books cannot be used.")
-            return@ExpressiveScreen
+            return@PracticeDialog
         }
 
+        // Subject -> book -> chapter, each narrowing the next. The first subject and book are preselected.
+        val subjects = ui.books.map { it.subject }.distinct()
+        if (subjects.size > 1) {
+            SectionTitle("Subject")
+            ConnectedToggleGroup(subjects, subjects.indexOf(ui.subject).coerceAtLeast(0)) { vm.selectSubject(subjects[it]) }
+        }
+        val booksOfSubject = ui.books.filter { it.subject == ui.subject }
         SectionTitle("Book")
-        FilterDropdown("Book", ui.books.map { it.title }, book?.title) { title ->
-            vm.selectBook(ui.books.firstOrNull { it.title == title }?.id)
+        FilterDropdown("Book", booksOfSubject.map { it.title }, book?.title) { title ->
+            vm.selectBook(booksOfSubject.firstOrNull { it.title == title }?.id)
         }
         if (book != null) {
             SectionTitle("Chapter")
-            FilterDropdown("Chapter", ui.chapters.map { it.title }, ui.chapters.getOrNull(ui.chapterIdx)?.title) { title ->
-                vm.selectChapter(ui.chapters.indexOfFirst { it.title == title })
+            val chapterNames = listOf("Whole book") + ui.chapters.map { it.title }
+            FilterDropdown("Chapter", chapterNames, chapterNames.getOrNull(ui.chapterIdx + 1)) { title ->
+                vm.selectChapter(chapterNames.indexOf(title) - 1)
             }
-            if (ui.chapterIdx < 0) BodyMuted("Whole book. Pick a chapter for book exercises.")
+            if (ui.chapters.isEmpty()) BodyMuted("No chapters found for this book yet. Practice uses the whole book.")
         }
 
         SectionTitle("Question types")
-        GenKind.entries.filter { !it.needsAi }.forEach { kind -> KindRow(kind, kind in ui.kinds, true) { vm.toggle(kind) } }
-
-        SectionTitle("Make with AI")
-        if (!ui.aiReady) {
-            BodyMuted("Needs AI turned on and your Gemini API key saved in Settings.")
-            FilledTonalButton(onClick = onOpenSettings, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Open AI settings") }
+        // Compact chips: the long explanation of each type is one tap away in the hint below.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            GenKind.entries.filter { !it.needsAi || ui.aiReady }.forEach { kind ->
+                FilterChip(selected = kind in ui.kinds, onClick = { vm.toggle(kind) }, label = { Text(kind.label.removeSuffix(" (AI)")) },
+                    leadingIcon = if (kind.needsAi) ({ Text("AI", style = MaterialTheme.typography.labelSmall) }) else null)
+            }
         }
-        GenKind.entries.filter { it.needsAi }.forEach { kind -> KindRow(kind, kind in ui.kinds, ui.aiReady) { vm.toggle(kind) } }
+        val shownKinds = ui.kinds.toList()
+        if (shownKinds.isNotEmpty()) BodyMuted(shownKinds.joinToString("\n") { "${it.label}: ${KIND_HELP.getValue(it)}" })
+        if (!ui.aiReady) {
+            BodyMuted("AI question types need AI turned on and your Gemini API key saved in Settings.")
+            TextButton(onClick = onOpenSettings) { Text("Open AI settings") }
+        }
 
         SectionTitle("Questions")
         ConnectedToggleGroup(PRACTICE_COUNTS.map { "$it" }, ui.countIdx) { vm.selectCount(it) }

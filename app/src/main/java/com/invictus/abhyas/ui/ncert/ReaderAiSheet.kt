@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.invictus.abhyas.ui.ncert
 
@@ -7,7 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.material3.SheetValue
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -100,9 +105,17 @@ fun ReaderAiSheet(app: AbhyasApp, pageLabel: String, pageText: suspend () -> Str
         send(q) { AiPrompts.ask(q, it) }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    // Opens at half height; drag the handle up for full height. The keyboard also expands it so the box stays visible.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val screenH = LocalConfiguration.current.screenHeightDp.dp
+    val full = sheetState.targetValue == SheetValue.Expanded
+    val contentH by animateDpAsState(if (full) screenH * 0.9f - 56.dp else screenH * 0.5f - 56.dp, label = "aiSheetHeight")
+    val imeOpen = WindowInsets.isImeVisible
+    LaunchedEffect(imeOpen) { if (imeOpen) sheetState.expand() }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
-            Modifier.fillMaxWidth().fillMaxHeight(0.92f).navigationBarsPadding().imePadding().padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().height(contentH).navigationBarsPadding().imePadding().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

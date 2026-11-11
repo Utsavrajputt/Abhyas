@@ -2,6 +2,7 @@ package com.invictus.abhyas.data.prefs
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -35,6 +36,12 @@ data class UserSettings(
     val aiModel: String = "gemini-2.5-flash",
     /** HTTPS URL of a hosted NCERT book index (optional; empty = not set). */
     val ncertIndexUrl: String = "",
+    /** Daily practice card on Home: on by default. */
+    val dailyEnabled: Boolean = true,
+    /** Questions in the daily set. */
+    val dailyCount: Int = 30,
+    /** Theory only by default; numericals can be added. */
+    val dailyNumerical: Boolean = false,
 )
 
 class SettingsStore(private val context: Context) {
@@ -48,6 +55,9 @@ class SettingsStore(private val context: Context) {
         val aiModel = stringPreferencesKey("ai_model")
         val ncertIndex = stringPreferencesKey("ncert_index_url")
         val exam = stringPreferencesKey("exam")
+        val dailyOn = booleanPreferencesKey("daily_enabled")
+        val dailyCount = intPreferencesKey("daily_count")
+        val dailyNumerical = booleanPreferencesKey("daily_numerical")
         val pyqIndex = stringPreferencesKey("pyq_index_url")
         val paperLinks = stringPreferencesKey("paper_links")
         val indexLinks = stringPreferencesKey("index_links")
@@ -70,6 +80,9 @@ class SettingsStore(private val context: Context) {
             ncertIndexUrl = p[Keys.ncertIndex] ?: "",
             exam = if (p[Keys.exam] == Exam.JEE_MAIN.name) Exam.JEE_MAIN else Exam.NEET,
             pyqIndexUrl = p[Keys.pyqIndex] ?: "",
+            dailyEnabled = p[Keys.dailyOn] ?: true,
+            dailyCount = p[Keys.dailyCount] ?: 30,
+            dailyNumerical = p[Keys.dailyNumerical] ?: false,
         )
     }
 
@@ -153,5 +166,17 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setPyqIndexUrl(url: String) {
         context.settingsDataStore.edit { it[Keys.pyqIndex] = url.trim() }
+    }
+
+    suspend fun setDailyEnabled(on: Boolean) {
+        context.settingsDataStore.edit { it[Keys.dailyOn] = on }
+    }
+
+    suspend fun setDailyCount(count: Int) {
+        context.settingsDataStore.edit { it[Keys.dailyCount] = count.coerceIn(5, 100) }
+    }
+
+    suspend fun setDailyNumerical(on: Boolean) {
+        context.settingsDataStore.edit { it[Keys.dailyNumerical] = on }
     }
 }

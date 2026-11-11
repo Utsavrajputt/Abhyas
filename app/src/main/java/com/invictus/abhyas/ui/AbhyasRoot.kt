@@ -17,6 +17,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
 import com.invictus.abhyas.data.prefs.UserSettings
@@ -83,6 +85,7 @@ fun AbhyasRoot(app: AbhyasApp) {
     val database = app.database
     val settingsStore = app.settingsStore
     val navController = rememberNavController()
+    var practiceDialog by remember { mutableStateOf<String?>(null) }
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
@@ -109,6 +112,20 @@ fun AbhyasRoot(app: AbhyasApp) {
         LocalShellActions provides (if (isTopLevel) shellActions else null),
         LocalBackAction provides backAction,
     ) {
+    when (practiceDialog) {
+        "setup" -> SetupScreen(
+            app,
+            onStarted = { practiceDialog = null; navController.navigate("session/$it") },
+            onDismiss = { practiceDialog = null },
+        )
+        "ncert" -> NcertPracticeScreen(
+            app,
+            onStarted = { practiceDialog = null; navController.navigate("session/$it") },
+            onOpenSettings = { practiceDialog = null; navController.navigate(ROUTE_SETTINGS) },
+            onDismiss = { practiceDialog = null },
+        )
+    }
+
     Scaffold(
         // Screens own the status-bar inset (their top bar draws behind it); only sides/bottom here.
         contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
@@ -130,8 +147,8 @@ fun AbhyasRoot(app: AbhyasApp) {
                             restoreState = true
                         }
                     },
-                    onCustomPractice = { navController.navigate("setup") { launchSingleTop = true } },
-                    onNcertPractice = { navController.navigate("ncertpractice") { launchSingleTop = true } },
+                    onCustomPractice = { practiceDialog = "setup" },
+                    onNcertPractice = { practiceDialog = "ncert" },
                 )
             }
         },
@@ -158,6 +175,7 @@ fun AbhyasRoot(app: AbhyasApp) {
                     onOpenSession = { navController.navigate("session/$it") },
                     onImportBank = { navController.navigate(Tab.Library.route) },
                     onOpenPyq = { navController.navigate("pyq") },
+                    onOpenResult = { navController.navigate("result/$it") },
                 )
             }
             composable(Tab.Library.route) {
@@ -186,13 +204,6 @@ fun AbhyasRoot(app: AbhyasApp) {
                     app, id,
                     onOpenChapter = { from, to -> navController.navigate("reader/$id?page=$from&from=$from&to=$to") },
                     onOpenFullBook = { navController.navigate("reader/$id") },
-                )
-            }
-            composable("ncertpractice") {
-                NcertPracticeScreen(
-                    app,
-                    onStarted = { navController.navigate("session/$it") { popUpTo("ncertpractice") { inclusive = true } } },
-                    onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                 )
             }
             composable(
@@ -224,7 +235,6 @@ fun AbhyasRoot(app: AbhyasApp) {
             composable("pdf/{id}/report", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 PdfReportScreen(app, entry.arguments?.getLong("id") ?: 0L, onBack = { navController.popBackStack() })
             }
-            composable("setup") { SetupScreen(app, onStarted = { navController.navigate("session/$it") { popUpTo("setup") { inclusive = true } } }) }
             composable("session/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 val id = entry.arguments?.getLong("id") ?: 0L
                 SessionScreen(
@@ -248,6 +258,7 @@ fun AbhyasRoot(app: AbhyasApp) {
             }
             composable(ROUTE_SETTINGS) {
                 SettingsRootScreen(
+                    app,
                     onBack = { navController.popBackStack() },
                     onOpenExam = { navController.navigate("settings/exam") },
                     onOpenAppearance = { navController.navigate("settings/appearance") },

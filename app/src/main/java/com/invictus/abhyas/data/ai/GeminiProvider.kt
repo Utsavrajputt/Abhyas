@@ -5,6 +5,12 @@ import com.invictus.abhyas.domain.ai.AiError
 import com.invictus.abhyas.domain.ai.AiPrompt
 import com.invictus.abhyas.domain.ai.AiProvider
 import com.invictus.abhyas.domain.ai.AiResult
+import com.invictus.abhyas.domain.ai.ModelsResult
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -25,6 +31,31 @@ class GeminiProvider(private val timeoutMs: Int = 40_000) : AiProvider {
 
     override suspend fun generate(prompt: AiPrompt, model: String, apiKey: String): AiResult = withContext(Dispatchers.IO) {
         call(prompt, model, apiKey)
+    }
+
+    override suspend fun listModels(apiKey: String): ModelsResult = withContext(Dispatchers.IO) {
+        val conn = URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000").openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.setRequestProperty("x-goog-api-key", apiKey)
+            val status = conn.responseCode
+            val stream = if (status < 400) conn.inputStream else conn.errorStream
+            val body = stream?.use { it.readBounded(MAX_BYTES) }?.toString(Charsets.UTF_8).orEmpty()
+            when {
+                status == 400 || status == 401 || status == 403 -> ModelsResult.Failure("The API key was not accepted.")
+                status >= 400 -> ModelsResult.Failure("Could not load models (error $status).")
+                else -> ModelsResult.Models(parseModels(body))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            ModelsResult.Failure("No connection. Could not load models.")
+        } catch (e: Exception) {
+            ModelsResult.Failure("Could not read the model list.")
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun call(prompt: AiPrompt, model: String, apiKey: String): AiResult {
@@ -71,5 +102,17 @@ class GeminiProvider(private val timeoutMs: Int = 40_000) : AiProvider {
 
     private companion object {
         const val MAX_BYTES = 1_000_000
+
+        /** Text models that support generateContent, newest-looking first (e.g. "gemini-2.5-flash"). */
+        fun parseModels(body: String): List<String> {
+            val arr = Json.parseToJsonElement(body).jsonObject["models"] as? JsonArray ?: return emptyList()
+            return arr.map { it.jsonObject }
+                .filter { m -> m["supportedGenerationMethods"]?.jsonArray?.any { it.jsonPrimitive.content == "generateContent" } == true }
+                .map { it["name"]!!.jsonPrimitive.content.removePrefix("models/") }
+                .filter { it.startsWith("gemini") && AiDefaults.isValidModel(it) }
+                .filterNot { id -> listOf("embedding", "tts", "image", "live", "audio", "robotics", "computer-use").any { it in id } }
+                .distinct()
+                .sortedDescending()
+        }
     }
 }

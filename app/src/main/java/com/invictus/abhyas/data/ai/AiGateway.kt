@@ -8,6 +8,7 @@ import com.invictus.abhyas.domain.ai.AiPrompt
 import com.invictus.abhyas.domain.ai.AiPrompts
 import com.invictus.abhyas.domain.ai.AiProvider
 import com.invictus.abhyas.domain.ai.AiResult
+import com.invictus.abhyas.domain.ai.ModelsResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -48,6 +49,12 @@ class AiGateway(
             withTimeoutOrNull(TOTAL_TIMEOUT_MS) { provider.generate(prompt, model, key) }
         } ?: AiResult.Failure(AiError.TIMEOUT, "The request took too long. Try again.")
         return scrub(result, key)
+    }
+
+    /** Lists models the saved key can use. Not serialised with [run]: it is one cheap GET. */
+    suspend fun models(): ModelsResult {
+        val key = withContext(Dispatchers.IO) { readKey() } ?: return ModelsResult.Failure("Add your Gemini API key first.")
+        return provider.listModels(key)
     }
 
     suspend fun test(): AiResult = run(AiPrompts.ping())

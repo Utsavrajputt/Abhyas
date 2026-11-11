@@ -8,6 +8,8 @@ data class SourcePassage(
     val text: String,
     val hash: String,
     val chapter: String? = null,
+    /** Page number printed in the textbook (the PDF page can differ: prelims, merged chapter files). */
+    val pageLabel: String = page.toString(),
 ) {
     fun ref() = NcertRef(bookId, page, idx, hash, chapter)
 }

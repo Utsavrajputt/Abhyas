@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import com.invictus.abhyas.ui.components.MainTopBar
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
@@ -90,7 +91,6 @@ fun ProgressScreen(app: AbhyasApp, onOpenResult: (Long) -> Unit, onOpenSession: 
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { BodyMuted("Results and analytics") }
         item { ConnectedToggleGroup(TABS, tab) { tab = it } }
 
         val h = history
@@ -132,29 +132,29 @@ private fun androidx.compose.foundation.lazy.LazyListScope.overview(
     }
     val overall = Analytics.overall(stats)
     item {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            val cs = MaterialTheme.colorScheme
-            ShapeStat(pct(overall.accuracy), "Accuracy", MaterialShapes.Sunny.toShape(), cs.primaryContainer, cs.onPrimaryContainer)
-            ShapeStat("${overall.attempted}", "Answered", MaterialShapes.Flower.toShape(), cs.secondaryContainer, cs.onSecondaryContainer)
-            ShapeStat("${history.size}", "Tests", MaterialShapes.Cookie6Sided.toShape(), cs.tertiaryContainer, cs.onTertiaryContainer)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryTile(Modifier.weight(1f), pct(overall.accuracy), "Accuracy", accuracyColor(overall.accuracy))
+            SummaryTile(Modifier.weight(1f), "${overall.attempted}", "Answered", ProgInfo)
+            SummaryTile(Modifier.weight(1f), "${history.size}", "Tests", ProgViolet)
         }
     }
-    breakdownSection("By subject", Analytics.breakdown(stats, Dimension.SUBJECT))
-    breakdownSection("Theory vs numerical", Analytics.breakdown(stats, Dimension.SUBJECT_KIND))
-    breakdownSection("By difficulty", Analytics.breakdown(stats, Dimension.DIFFICULTY))
+    breakdownSection("By subject", Analytics.breakdown(stats, Dimension.SUBJECT), ProgInfo)
+    breakdownSection("Theory vs numerical", Analytics.breakdown(stats, Dimension.SUBJECT_KIND), ProgViolet)
+    breakdownSection("By difficulty", Analytics.breakdown(stats, Dimension.DIFFICULTY), ProgTeal)
     val weak = Analytics.weakTopics(stats)
-    item { SectionTitle("Weak topics") }
+    item { ColorSectionTitle("Weak topics", ProgBad) }
     if (weak.isEmpty()) item { BodyMuted("No weak topics yet. A topic needs at least 3 answered questions with accuracy under 60%.") }
-    items(weak, key = { "w-${it.label}" }) { BreakdownRow(it) }
+    items(weak, key = { "w-${it.label}" }) { BreakdownCard(it, ProgBad) }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.breakdownSection(
     title: String,
     rows: List<com.invictus.abhyas.domain.analytics.Breakdown>,
+    accent: androidx.compose.ui.graphics.Color,
 ) {
     if (rows.isEmpty()) return
-    item { SectionTitle(title) }
-    items(rows, key = { "$title-${it.label}" }) { BreakdownRow(it) }
+    item { ColorSectionTitle(title, accent) }
+    itemsIndexed(rows, key = { _, r -> "$title-${r.label}" }) { i, r -> BreakdownCard(r, ProgPalette[i % ProgPalette.size]) }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.historyTab(
