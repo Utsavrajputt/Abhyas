@@ -49,19 +49,43 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** The tapped book plus the other parts of the same class and subject, so chapters run on from Part 1 into Part 2. */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ChapterListViewModel(app: AbhyasApp, bookId: String) : ViewModel() {
     private val repo = app.books
-    val book: StateFlow<BookEntity?> = repo.observeBook(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    val chapters: StateFlow<List<BookChapterEntity>> = repo.observeChapters(bookId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val read: StateFlow<Set<Int>> = repo.observeRead(bookId).map { it.toSet() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
-    val layout = MutableStateFlow<BookLayout?>(null)
+
+    val books: StateFlow<List<BookEntity>> = combine(repo.observeBook(bookId), repo.observeBooks()) { lead, all ->
+        if (lead == null) emptyList()
+        else all.filter { it.subject == lead.subject && it.classLevel == lead.classLevel }.sortedBy { BookNaming.part(it.title) ?: 0 }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Chapters of every part, in reading order, each tagged with its book. */
+    val chapters: StateFlow<List<Pair<BookEntity, BookChapterEntity>>> = books.flatMapLatest { bs ->
+        if (bs.isEmpty()) flowOf(emptyList())
+        else combine(bs.map { b -> repo.observeChapters(b.id).map { list -> list.map { b to it } } }) { arr -> arr.toList().flatten() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val read: StateFlow<Map<String, Set<Int>>> = books.flatMapLatest { bs ->
+        if (bs.isEmpty()) flowOf(emptyMap())
+        else combine(bs.map { b -> repo.observeRead(b.id).map { b.id to it.toSet() } }) { arr -> arr.toMap() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    val layouts = MutableStateFlow<Map<String, BookLayout?>>(emptyMap())
 
     init {
-        viewModelScope.launch(Dispatchers.IO) { layout.value = repo.layout(bookId) }
+        viewModelScope.launch(Dispatchers.IO) {
+            books.collect { bs ->
+                val missing = bs.filter { it.id !in layouts.value }
+                if (missing.isNotEmpty()) layouts.value = layouts.value + missing.associate { it.id to repo.layout(it.id) }
+            }
+        }
     }
 }
 
@@ -70,36 +94,38 @@ class ChapterListViewModel(app: AbhyasApp, bookId: String) : ViewModel() {
 fun ChapterListScreen(
     app: AbhyasApp,
     bookId: String,
-    onOpenChapter: (from: Int, to: Int) -> Unit,
-    onOpenFullBook: () -> Unit,
+    onOpenChapter: (bookId: String, from: Int, to: Int) -> Unit,
+    onOpenFullBook: (bookId: String) -> Unit,
 ) {
     val vm: ChapterListViewModel = viewModel(key = "chapters-$bookId", factory = viewModelFactory { initializer { ChapterListViewModel(app, bookId) } })
-    val book by vm.book.collectAsState()
+    val books by vm.books.collectAsState()
     val chapters by vm.chapters.collectAsState()
     val read by vm.read.collectAsState()
-    val layout by vm.layout.collectAsState()
-    val label: (Int) -> String = { p -> layout?.displayLabel(p) ?: p.toString() }
-    val b = book
+    val layouts by vm.layouts.collectAsState()
+    val b = books.firstOrNull()
 
-    ExpressiveScreen(title = b?.let { BookNaming.shortTitle(it.title, it.subject) } ?: "Book", subtitle = "") {
+    ExpressiveScreen(title = b?.let { BookNaming.baseTitle(it.title, it.subject) } ?: "Book", subtitle = "") {
         if (b == null) {
             BodyMuted("Book not found.")
             return@ExpressiveScreen
         }
-        val pct = if (b.pageCount > 0) (read.size * 100 / b.pageCount).coerceIn(0, 100) else 0
+        val totalPages = books.sumOf { it.pageCount }
+        val readPages = read.values.sumOf { it.size }
+        val pct = if (totalPages > 0) (readPages * 100 / totalPages).coerceIn(0, 100) else 0
+        val numbered = chapters.count { it.second.title.startsWith("Ch") }
         Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = AbhyasShapes.M, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.width(92.dp).aspectRatio(0.72f)) {
                     BookCoverArt(b)
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(b.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    Text(BookNaming.baseTitle(b.title, b.subject), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         b.classLevel?.let { InfoPill("Class $it") }
                         InfoPill(b.subject)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        InfoPill("${b.pageCount} pages")
+                        if (numbered > 0) InfoPill("$numbered chapters")
                         InfoPill("$pct% read", highlight = pct > 0)
                     }
                 }
@@ -108,13 +134,16 @@ fun ChapterListScreen(
 
         if (chapters.isEmpty()) {
             BodyMuted("Chapters appear when indexing finishes.")
-            if (b.pageCount > 0) FilledTonalButton(onClick = onOpenFullBook, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Open full book") }
+            if (b.pageCount > 0) FilledTonalButton(onClick = { onOpenFullBook(b.id) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Open full book") }
         } else {
             Text("Chapters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                chapters.forEach { c -> ChapterCard(badgeOf(c.title), c, label, read) { onOpenChapter(c.startPage, c.endPage) } }
+                chapters.forEach { (book, c) ->
+                    val label: (Int) -> String = { p -> layouts[book.id]?.displayLabel(p) ?: p.toString() }
+                    ChapterCard(badgeOf(c.title), c, label, read[book.id].orEmpty()) { onOpenChapter(book.id, c.startPage, c.endPage) }
+                }
             }
-            FilledTonalButton(onClick = onOpenFullBook, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Read full book") }
+            FilledTonalButton(onClick = { onOpenFullBook(b.id) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Read full book") }
         }
     }
 }

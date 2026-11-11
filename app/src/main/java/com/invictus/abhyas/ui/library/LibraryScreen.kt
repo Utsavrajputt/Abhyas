@@ -63,6 +63,7 @@ fun LibraryScreen(
     val settings by app.settingsStore.settings.collectAsState(initial = UserSettings())
     val exam = settings.exam
     val shelf by app.books.observeBooks().collectAsState(initial = emptyList())
+    val chapterCounts by app.books.observeChapterCounts().collectAsState(initial = emptyMap())
 
     val examPapers = papers?.filter { it.bank.exam == exam.name }.orEmpty()
     val hasBooks = shelf.isNotEmpty()
@@ -91,7 +92,7 @@ fun LibraryScreen(
                         { BookNaming.shortTitle(it.title, it.subject) },
                     ),
                 )
-                BookShelf(books = books, onOpenBook = onOpenBook)
+                BookShelf(books = books, chapterCounts = chapterCounts, onOpenBook = onOpenBook)
             }
         }
 

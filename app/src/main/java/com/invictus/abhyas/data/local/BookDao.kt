@@ -7,8 +7,14 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** Number of numbered chapters ("Ch N: ...") a book has; prelims and appendices are not counted. */
+data class ChapterCount(val bookId: String, val n: Int)
+
 @Dao
 interface BookDao {
+    @Query("SELECT bookId, COUNT(*) AS n FROM book_chapters WHERE title LIKE 'Ch%' GROUP BY bookId")
+    fun observeChapterCounts(): Flow<List<ChapterCount>>
+
     // ---- books ----
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertBook(book: BookEntity)

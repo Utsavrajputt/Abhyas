@@ -202,8 +202,8 @@ fun AbhyasRoot(app: AbhyasApp) {
                 val id = entry.arguments?.getString("bookId").orEmpty()
                 ChapterListScreen(
                     app, id,
-                    onOpenChapter = { from, to -> navController.navigate("reader/$id?page=$from&from=$from&to=$to") },
-                    onOpenFullBook = { navController.navigate("reader/$id") },
+                    onOpenChapter = { book, from, to -> navController.navigate("reader/$book?page=$from&from=$from&to=$to") },
+                    onOpenFullBook = { book -> navController.navigate("reader/$book") },
                 )
             }
             composable(

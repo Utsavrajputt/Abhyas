@@ -47,6 +47,7 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -97,6 +98,8 @@ class BookRepository(
     private val matchIndexes = ConcurrentHashMap<String, PassageIndex>()
 
     fun observeBooks(): Flow<List<BookEntity>> = dao.observeBooks()
+
+    fun observeChapterCounts(): Flow<Map<String, Int>> = dao.observeChapterCounts().map { rows -> rows.associate { it.bookId to it.n } }
     fun observeReadCounts(): Flow<List<ReadCount>> = dao.observeReadCounts()
     fun observeBook(id: String) = dao.observeBook(id)
     fun observeChapters(id: String) = dao.observeChapters(id)

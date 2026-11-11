@@ -22,6 +22,15 @@ object BookNaming {
         return t.ifBlank { subject.ifBlank { title } }
     }
 
+    /** Title without class, publisher and part: "NCERT Physics Class 11 Part 1" -> "Physics". */
+    fun baseTitle(title: String, subject: String): String {
+        var t = CLASS.replace(title, " ")
+        t = NCERT.replace(t, " ")
+        t = PART.replace(t, " ")
+        t = t.replace(Regex("""[()\[\]]"""), " ").replace(Regex("""\s*[-:,]\s*$"""), "").replace(Regex("""\s+"""), " ").trim()
+        return t.ifBlank { subject.ifBlank { title } }
+    }
+
     /** Heading for a shelf: "Class 11", or "Other" when the class is unknown. */
     fun classLabel(classLevel: Int?): String = classLevel?.let { "Class $it" } ?: "Other"
 

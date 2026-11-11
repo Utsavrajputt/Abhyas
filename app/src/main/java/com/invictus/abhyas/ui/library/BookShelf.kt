@@ -37,34 +37,48 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.LineHeightStyle
 import com.invictus.abhyas.data.local.BookEntity
 import com.invictus.abhyas.data.local.BookStatus
 import com.invictus.abhyas.domain.ncert.BookNaming
 import com.invictus.abhyas.ui.icons.AppIcons
 import com.invictus.abhyas.ui.theme.AbhyasShapes
 
-/** Horizontal slider of the books on the device; tap one to see its chapters. */
+/** Horizontal slider of the books on the device; parts of one subject share a card. Tap to see the chapters. */
 @Composable
-fun BookShelf(books: List<BookEntity>, onOpenBook: (String) -> Unit, modifier: Modifier = Modifier) {
+fun BookShelf(books: List<BookEntity>, chapterCounts: Map<String, Int>, onOpenBook: (String) -> Unit, modifier: Modifier = Modifier) {
+    val groups = books.groupBy { it.subject }.values.map { g -> g.sortedBy { BookNaming.part(it.title) ?: 0 } }
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(horizontal = 2.dp),
     ) {
-        items(books, key = { it.id }) { book -> BookCard(book, onClick = { onOpenBook(book.id) }) }
+        items(groups, key = { g -> g.first().id }) { g -> BookCard(g, chapterCounts, onClick = { onOpenBook(g.first().id) }) }
     }
 }
 
 @Composable
-private fun BookCard(book: BookEntity, onClick: () -> Unit) {
+private fun BookCard(parts: List<BookEntity>, chapterCounts: Map<String, Int>, onClick: () -> Unit) {
+    val book = parts.first()
     val cs = MaterialTheme.colorScheme
-    val (container, onContainer) = when (book.subject) {
+    val (container, _) = when (book.subject) {
         "Physics" -> cs.primaryContainer to cs.onPrimaryContainer
         "Chemistry" -> cs.tertiaryContainer to cs.onTertiaryContainer
         "Biology" -> cs.secondaryContainer to cs.onSecondaryContainer
         else -> cs.surfaceContainerHighest to cs.onSurface
     }
-    val openable = book.pageCount > 0 && book.status != BookStatus.FAILED
+    val openable = parts.any { it.pageCount > 0 && it.status != BookStatus.FAILED }
+    val chapters = parts.sumOf { chapterCounts[it.id] ?: 0 }
+    val pending = parts.firstOrNull { it.status != BookStatus.READY }
+    val subtitle = when {
+        pending == null -> if (chapters > 0) "$chapters chapters" else "Ready"
+        pending.status == BookStatus.FAILED -> "Needs retry"
+        pending.status == BookStatus.DOWNLOADING -> pending.message ?: "Downloading..."
+        else -> if (openable) "Indexing..." else "Preparing..."
+    }
+    // Explicit line height without trimming: the default tight metrics of this font clipped the top of digits.
+    val label = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)
     Column(
         modifier = Modifier
             .width(136.dp)
@@ -82,21 +96,17 @@ private fun BookCard(book: BookEntity, onClick: () -> Unit) {
             BookCoverArt(book)
         }
         Text(
-            text = BookNaming.shortTitle(book.title, book.subject),
-            style = MaterialTheme.typography.labelLarge,
+            text = BookNaming.baseTitle(book.title, book.subject),
+            style = MaterialTheme.typography.labelLarge.copy(lineHeight = 20.sp, lineHeightStyle = label),
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = when (book.status) {
-                BookStatus.READY -> "${book.pageCount} pages"
-                BookStatus.FAILED -> "Needs retry"
-                BookStatus.DOWNLOADING -> book.message ?: "Downloading..."
-                else -> if (openable) "${book.pageCount} pages - indexing" else "Preparing..."
-            },
-            style = MaterialTheme.typography.labelSmall,
+            text = subtitle,
+            style = MaterialTheme.typography.labelSmall.copy(lineHeight = 16.sp, lineHeightStyle = label),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp),
         )
     }
 }
