@@ -69,7 +69,7 @@ private const val ROUTE_SETTINGS = "settings"
 
 private val TOP_LEVEL_ROUTES = setOf(Tab.Home.route, Tab.Library.route, Tab.Progress.route)
 
-private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("browse", "setup", "pdfstudio", "chapters/{bookId}", "ncertpractice", "pyq", "papers")
+private val NAV_BAR_ROUTES = TOP_LEVEL_ROUTES + setOf("setup", "pdfstudio", "chapters/{bookId}", "ncertpractice", "pyq", "papers")
 
 private fun Tab.icon() = when (this) {
     Tab.Home -> AppIcons.Home
@@ -116,7 +116,7 @@ fun AbhyasRoot(app: AbhyasApp) {
             if (currentRoute in NAV_BAR_ROUTES) {
                 val selectedIndex = when (currentRoute) {
                     Tab.Home.route -> 0
-                    Tab.Library.route, "browse", "chapters/{bookId}", "pyq" -> 1
+                    Tab.Library.route, "chapters/{bookId}", "pyq" -> 1
                     Tab.Progress.route -> 2
                     else -> null
                 }

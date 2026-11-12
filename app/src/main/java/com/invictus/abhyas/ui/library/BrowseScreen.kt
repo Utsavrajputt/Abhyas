@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import com.invictus.abhyas.ui.components.AbhyasTopBar
 import com.invictus.abhyas.ui.components.BackNavigationIcon
 import com.invictus.abhyas.ui.components.LocalBackAction
@@ -66,18 +67,26 @@ fun BrowseScreen(app: AbhyasApp) {
 
 
     val back = LocalBackAction.current
+    val filter by vm.filter.collectAsState()
     // Questions are searched across every exam; the NEET / JEE switch is gone from this screen.
     LaunchedEffect(Unit) { vm.update { it.copy(exam = null) } }
-    Column(Modifier.fillMaxSize()) {
-        AbhyasTopBar(
-            title = { Text("Questions") },
-            navigationIcon = { back?.let { BackNavigationIcon(onBack = it) } },
-        )
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    // A full-screen search: no bottom bar, the search field is the header.
+    Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            back?.let { BackNavigationIcon(onBack = { focus.clearFocus(); it() }) }
+            SearchPill(
+                value = filter.query,
+                onValueChange = { q -> vm.update { it.copy(query = q) } },
+                placeholder = "Search all questions",
+                modifier = Modifier.weight(1f),
+            )
+        }
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 16.dp),
+            Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-        FilterControls(vm, showSearch = true, showExam = false)
+        FilterControls(vm, showSearch = false, showExam = false)
 
         Text(
             if (count == 1) "1 question" else "$count questions",

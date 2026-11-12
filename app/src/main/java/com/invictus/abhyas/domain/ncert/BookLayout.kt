@@ -32,6 +32,9 @@ data class BookLayout(val sections: List<LayoutSection>, val pageOffset: Int) {
     fun printedLabel(page: Int): String =
         if (page <= prelimsPages) roman(page) else (page + pageOffset).coerceAtLeast(1).toString()
 
+    /** Plain number for list rows: prelims count 1, 2, 3 (not i, ii, iii); later pages use the printed number. */
+    fun displayLabel(page: Int): String = if (page <= prelimsPages) page.toString() else printedLabel(page)
+
     /** True for pages of a real chapter (not prelims, appendices or the answer key). */
     fun isContent(page: Int): Boolean =
         sections.any { it.kind == SectionKind.CHAPTER && page >= it.startPage && page < it.startPage + it.pages }

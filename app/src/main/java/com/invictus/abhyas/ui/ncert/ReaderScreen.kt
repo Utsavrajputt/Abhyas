@@ -106,7 +106,7 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     val book by vm.book.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
     val layout by vm.layout.collectAsState()
-    val label: (Int) -> String = { p -> layout?.printedLabel(p) ?: p.toString() }
+    val label: (Int) -> String = { p -> layout?.displayLabel(p) ?: p.toString() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var contents by remember { mutableStateOf(false) }
@@ -175,7 +175,10 @@ fun ReaderScreen(app: AbhyasApp, bookId: String, startPage: Int, startPara: Int,
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             AbhyasTopBar(
-                title = {},
+                title = {
+                    val chapterName = chapterList.lastOrNull { it.startPage <= current }?.title ?: book?.title ?: ""
+                    Text(chapterName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                },
                 navigationIcon = { BackNavigationIcon(onBack = onBack) },
                 actions = {
                     if (aiReady) IconButton(onClick = { aiOpen = true }) { Icon(Icons.Outlined.AutoAwesome, contentDescription = "Ask AI about this page") }

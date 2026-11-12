@@ -78,7 +78,7 @@ fun ChapterListScreen(
     val chapters by vm.chapters.collectAsState()
     val read by vm.read.collectAsState()
     val layout by vm.layout.collectAsState()
-    val label: (Int) -> String = { p -> layout?.printedLabel(p) ?: p.toString() }
+    val label: (Int) -> String = { p -> layout?.displayLabel(p) ?: p.toString() }
     val b = book
 
     ExpressiveScreen(title = b?.let { BookNaming.shortTitle(it.title, it.subject) } ?: "Book", subtitle = "") {
@@ -112,7 +112,7 @@ fun ChapterListScreen(
         } else {
             Text("Chapters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                chapters.forEachIndexed { i, c -> ChapterCard(i + 1, c, label, read) { onOpenChapter(c.startPage, c.endPage) } }
+                chapters.forEach { c -> ChapterCard(badgeOf(c.title), c, label, read) { onOpenChapter(c.startPage, c.endPage) } }
             }
             FilledTonalButton(onClick = onOpenFullBook, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text("Read full book") }
         }
@@ -120,7 +120,7 @@ fun ChapterListScreen(
 }
 
 @Composable
-private fun ChapterCard(number: Int, c: BookChapterEntity, label: (Int) -> String, read: Set<Int>, onClick: () -> Unit) {
+private fun ChapterCard(badge: String, c: BookChapterEntity, label: (Int) -> String, read: Set<Int>, onClick: () -> Unit) {
     val total = (c.endPage - c.startPage + 1).coerceAtLeast(1)
     val done = read.count { it in c.startPage..c.endPage }
     val frac = (done.toFloat() / total).coerceIn(0f, 1f)
@@ -128,7 +128,7 @@ private fun ChapterCard(number: Int, c: BookChapterEntity, label: (Int) -> Strin
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(progress = { frac }, modifier = Modifier.fillMaxSize(), strokeWidth = 3.dp, trackColor = MaterialTheme.colorScheme.surfaceContainerHighest)
-                Text(number.toString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(badge, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(c.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -141,3 +141,7 @@ private fun ChapterCard(number: Int, c: BookChapterEntity, label: (Int) -> Strin
         }
     }
 }
+
+/** "Ch 5: Nuclei" -> "5"; Prelims, Appendices and Answers get their first letter. */
+private fun badgeOf(title: String): String =
+    Regex("""^Ch\s*(\d+)""").find(title)?.groupValues?.get(1) ?: title.take(1).uppercase()

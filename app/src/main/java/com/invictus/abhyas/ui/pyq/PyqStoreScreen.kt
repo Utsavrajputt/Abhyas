@@ -8,6 +8,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.FlowRow
@@ -63,6 +71,7 @@ import com.invictus.abhyas.data.local.BankEntity
 import com.invictus.abhyas.data.local.BookEntity
 import com.invictus.abhyas.data.local.BookStatus
 import com.invictus.abhyas.data.pyq.PackageEntry
+import com.invictus.abhyas.domain.ncert.BookNaming
 import com.invictus.abhyas.data.pyq.PackageType
 import com.invictus.abhyas.data.pyq.PaperLink
 import com.invictus.abhyas.ui.icons.AppIcons
@@ -88,10 +97,36 @@ fun PyqStoreScreen(app: AbhyasApp, onOpenSettings: () -> Unit, onOpenStudio: () 
     val lib: LibraryViewModel = viewModel(factory = appViewModelFactory(app))
     var tab by remember { mutableIntStateOf(0) }
 
-    ExpressiveScreen("Packages", "") {
+    ExpressiveScreen(
+        "Packages", "",
+        contentModifier = Modifier.pointerInput(tab) {
+            // Swipe sideways to flip between Online and Offline.
+            val threshold = 72.dp.toPx()
+            var total = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { total = 0f },
+                onDragCancel = { total = 0f },
+                onDragEnd = {
+                    if (total < -threshold && tab == 0) tab = 1 else if (total > threshold && tab == 1) tab = 0
+                    total = 0f
+                },
+            ) { _, dx -> total += dx }
+        },
+    ) {
         PillTabs(listOf("Online", "Offline"), tab) { tab = it }
-        if (tab == 0) OnlineTab(app, vm, onOpenSettings, onOpenStudio)
-        else OfflineTab(app, vm, lib, onOpenStudio, onBrowseOnline = { tab = 0 })
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                val dir = if (targetState > initialState) 1 else -1
+                (slideInHorizontally { it * dir / 4 } + fadeIn()) togetherWith (slideOutHorizontally { -it * dir / 4 } + fadeOut())
+            },
+            label = "packagesTab",
+        ) { t ->
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (t == 0) OnlineTab(app, vm, onOpenSettings, onOpenStudio)
+                else OfflineTab(app, vm, lib, onOpenStudio, onBrowseOnline = { tab = 0 })
+            }
+        }
     }
 }
 
@@ -171,8 +206,6 @@ private fun OfflineTab(app: AbhyasApp, vm: PyqViewModel, lib: LibraryViewModel, 
     val importState by lib.importState.collectAsState()
     var pendingRemove by remember { mutableStateOf<BankEntity?>(null) }
     var pendingRemoveBook by remember { mutableStateOf<BookEntity?>(null) }
-    var picked by remember { mutableStateOf<Int?>(null) }
-    val group = picked ?: if (books.isEmpty() && banks.isNotEmpty()) 1 else 0
 
     val message by vm.message.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -205,52 +238,29 @@ private fun OfflineTab(app: AbhyasApp, vm: PyqViewModel, lib: LibraryViewModel, 
         }
     }
 
-    PillTabs(listOf("Books (${books.size})", "Question banks (${banks.size})"), group) { picked = it }
+    GroupLabel("Books (${books.size})")
+    if (books.isEmpty()) {
+        EmptyState(
+            AppIcons.MenuBook, "No books yet",
+            "Download a textbook from Online, or add a PDF from your phone.",
+            "Browse online packages", onBrowseOnline,
+        )
+    }
+    books.forEach { book ->
+        InstalledBookCard(book, onRemove = { pendingRemoveBook = book }, onRetry = { vm.retryBook(book.id) })
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (group == 0) {
-            if (books.isEmpty()) {
-                EmptyState(
-                    AppIcons.MenuBook, "No books yet",
-                    "Download a textbook from Online, or import a PDF from your phone.",
-                    "Browse online packages", onBrowseOnline,
-                )
-            }
-            books.forEach { book ->
-                InstalledBookCard(book, onRemove = { pendingRemoveBook = book }, onRetry = { vm.retryBook(book.id) })
-            }
-        } else {
-            if (banks.isEmpty()) {
-                EmptyState(
-                    AppIcons.Database, "No question banks yet",
-                    "Import a bank zip from your phone, or download papers from Online.",
-                    "Browse online packages", onBrowseOnline,
-                )
-            }
-            banks.forEach { bank ->
-                Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconTile(AppIcons.Database)
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(bank.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text("Installed", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOfNotNull(
-                                "v${bank.version}", "${bank.questionCount} questions", bank.exam.replace('_', ' '),
-                                bank.classLevel?.let { "Class $it" }, bank.subject, bank.kind.lowercase(),
-                            ).forEach { InfoPill(it) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilledTonalButton(onClick = { zipPicker.launch(ZIP_TYPES) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
-                            TextButton(onClick = { pendingRemove = bank }, shapes = ButtonDefaults.shapes()) { Text("Remove") }
-                        }
-                    }
-                }
-            }
-        }
+    GroupLabel("Question banks (${banks.size})")
+    if (banks.isEmpty()) {
+        Hint("No question banks yet. Download papers from Online or add a bank zip.")
+    }
+    banks.forEach { bank ->
+        CompactRow(
+            icon = AppIcons.Database,
+            title = bank.title,
+            detail = "${bank.questionCount} questions",
+            onRemove = { pendingRemove = bank },
+        )
     }
 
     pickedPdf?.let { uri ->
@@ -308,35 +318,47 @@ private fun InstalledBookCard(book: BookEntity, onRemove: () -> Unit, onRetry: (
     val bytes = remember(book.localPath, book.status) { File(book.localPath).takeIf { it.exists() }?.length() }
     val failed = book.status == BookStatus.FAILED
     val status = when (book.status) {
-        BookStatus.READY -> listOfNotNull("Ready", "${book.pageCount} pages", bytes?.let(::sizeLabel)).joinToString(" - ")
+        BookStatus.READY -> listOfNotNull("${book.pageCount} pages", bytes?.let(::sizeLabel)).joinToString(" - ")
         BookStatus.INDEXING -> "Preparing for search ${book.indexedPages}/${book.pageCount}"
         BookStatus.DOWNLOADING -> book.message ?: "Downloading"
         else -> book.message ?: "Failed"
     }
+    CompactRow(
+        icon = AppIcons.MenuBook,
+        title = BookNaming.shortTitle(book.title, book.subject).let { t -> book.classLevel?.let { "$t - Class $it" } ?: t },
+        detail = status,
+        detailColor = if (failed) MaterialTheme.colorScheme.error else null,
+        busy = book.status != BookStatus.READY && !failed,
+        onRetry = if (failed) onRetry else null,
+        onRemove = onRemove,
+    )
+}
+
+/** One installed item: icon, name, a single line of facts (pages, size, questions) and a Remove button. */
+@Composable
+private fun CompactRow(
+    icon: ImageVector,
+    title: String,
+    detail: String,
+    onRemove: () -> Unit,
+    detailColor: androidx.compose.ui.graphics.Color? = null,
+    busy: Boolean = false,
+    onRetry: (() -> Unit)? = null,
+) {
     Surface(shape = AbhyasShapes.L, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconTile(AppIcons.MenuBook)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(book.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        status,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (book.status != BookStatus.READY && !failed) LoadingIndicator(modifier = Modifier.size(28.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconTile(icon)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = detailColor ?: MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                book.classLevel?.let { InfoPill("Class $it") }
-                InfoPill(book.subject)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (failed) FilledTonalButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text("Retry") }
-                TextButton(onClick = onRemove, shapes = ButtonDefaults.shapes()) { Text("Remove") }
-            }
+            if (busy) LoadingIndicator(modifier = Modifier.size(28.dp))
+            if (onRetry != null) TextButton(onClick = onRetry, shapes = ButtonDefaults.shapes()) { Text("Retry") }
+            TextButton(onClick = onRemove, shapes = ButtonDefaults.shapes()) { Text("Remove") }
         }
     }
 }

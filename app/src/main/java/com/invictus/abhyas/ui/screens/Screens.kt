@@ -84,6 +84,7 @@ internal fun ExpressiveScreen(
     subtitle: String,
     floatingActionButton: @Composable () -> Unit = {},
     topBarActions: @Composable RowScope.() -> Unit = {},
+    contentModifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val back = LocalBackAction.current
@@ -106,6 +107,7 @@ internal fun ExpressiveScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(contentModifier)
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 16.dp),

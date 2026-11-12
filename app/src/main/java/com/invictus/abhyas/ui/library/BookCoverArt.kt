@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.invictus.abhyas.data.local.BookEntity
 import com.invictus.abhyas.data.pdf.BookCovers
 import com.invictus.abhyas.domain.ncert.BookNaming
@@ -54,19 +55,18 @@ private fun GeneratedCover(book: BookEntity, modifier: Modifier = Modifier) {
         else -> Triple(cs.outline, cs.surfaceContainerHighest, cs.surface)
     }
     val part = BookNaming.part(book.title)
-    Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Text("NCERT", style = MaterialTheme.typography.labelSmall, color = on.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+    BoxWithConstraints(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
+        // Text sizes follow the cover width so the subject never wraps (small cover on the chapter screen, bigger on the shelf).
+        val unit = maxWidth.value
+        val big = (unit * 0.16f * (7f / maxOf(7, book.subject.length))).sp
+        val small = (unit * 0.09f).coerceAtLeast(9f).sp
+        Column(Modifier.fillMaxSize().padding((unit * 0.09f).dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Text("NCERT", fontSize = small, color = on.copy(alpha = 0.8f), fontWeight = FontWeight.Bold, maxLines = 1)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(book.subject, style = MaterialTheme.typography.titleLarge, color = on, fontWeight = FontWeight.ExtraBold)
-                if (part != null) Text("Part $part", style = MaterialTheme.typography.titleSmall, color = on.copy(alpha = 0.9f))
+                Text(book.subject, fontSize = big, color = on, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+                if (part != null) Text("Part $part", fontSize = small, color = on.copy(alpha = 0.9f), maxLines = 1)
             }
-            Text(
-                book.classLevel?.let { "Class $it" } ?: "",
-                style = MaterialTheme.typography.labelLarge,
-                color = on.copy(alpha = 0.9f),
-                fontWeight = FontWeight.SemiBold,
-            )
+            Text(book.classLevel?.let { "Class $it" } ?: "", fontSize = small, color = on.copy(alpha = 0.9f), fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
