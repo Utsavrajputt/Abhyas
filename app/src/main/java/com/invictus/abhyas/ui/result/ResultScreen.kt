@@ -92,6 +92,8 @@ fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit, onOpenNcer
     var reviewFilter by remember { mutableStateOf(0) }
     var open by remember { mutableStateOf(setOf<Int>()) }
     var showBreakdown by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var jump by remember { mutableStateOf<Int?>(null) }
 
     if (ui.loading || a == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -108,8 +110,19 @@ fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit, onOpenNcer
         else -> ui.review
     }
 
+    // Items before the first review row: title, hero, tiles, buttons, breakdown header, (breakdown), "Review", map, filters.
+    val breakdownExtra = if (showBreakdown) 1 + maxOf(1, Analytics.breakdown(ui.stats, dim).size) else 0
+    val reviewStart = 8 + breakdownExtra
+    androidx.compose.runtime.LaunchedEffect(jump) {
+        jump?.let { pos ->
+            listState.animateScrollToItem(reviewStart + pos)
+            jump = null
+        }
+    }
+
     LazyColumn(
-        Modifier.fillMaxSize().statusBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -186,7 +199,7 @@ fun ResultScreen(app: AbhyasApp, attemptId: Long, onDone: () -> Unit, onOpenNcer
                     val c = verdictColor(r.verdict)
                     Box(
                         Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(c.copy(alpha = 0.22f))
-                            .clickable { open = open + r.position; reviewFilter = 0 },
+                            .clickable { open = open + r.position; reviewFilter = 0; jump = r.position },
                         contentAlignment = Alignment.Center,
                     ) { Text("${r.position + 1}", style = MaterialTheme.typography.labelMedium, color = c, fontWeight = FontWeight.Bold) }
                 }
@@ -271,6 +284,7 @@ private fun ReviewRow(
                     Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MathText(q.statement)
                         QuestionImage(q.imagePath)
+                        OptionReview(q, r.response)
                         AnswerLine("Your answer", AnswerFormatter.given(q, r.response), c)
                         AnswerLine("Correct answer", AnswerFormatter.correct(q) ?: "Not available (answer key missing)", GoodColor)
                         q.explanation?.takeIf { it.isNotBlank() }?.let {
@@ -314,5 +328,40 @@ private fun AnswerLine(label: String, value: String, color: Color) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(88.dp))
         Box(Modifier.weight(1f)) { MathText(value) }
+    }
+}
+
+/** Every option of a choice question, in the order the student saw it: the right one in green, a wrong pick in red. */
+@Composable
+private fun OptionReview(q: com.invictus.abhyas.domain.model.Question, response: com.invictus.abhyas.domain.model.Response?) {
+    val (options, correct) = when (val p = q.payload) {
+        is com.invictus.abhyas.domain.model.SingleChoicePayload -> p.options to setOfNotNull(p.correctId)
+        is com.invictus.abhyas.domain.model.MultiChoicePayload -> p.options to p.correctIds.toSet()
+        is com.invictus.abhyas.domain.model.MatchPayload -> p.options to setOfNotNull(p.correctId)
+        else -> return
+    }
+    val chosen = (response as? com.invictus.abhyas.domain.model.Response.Choice)?.ids.orEmpty()
+    val labels = com.invictus.abhyas.domain.engine.OptionShuffler.labels(options)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.sortedBy { labels[it.id] }.forEach { o ->
+            val isRight = o.id in correct
+            val isPick = o.id in chosen
+            val color = when {
+                isRight -> GoodColor
+                isPick -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isRight || isPick) color.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceContainerHighest,
+            ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(labels[o.id] ?: "", style = MaterialTheme.typography.labelLarge, color = color, fontWeight = FontWeight.Bold, modifier = Modifier.width(18.dp))
+                    Box(Modifier.weight(1f)) { MathText(o.text) }
+                    if (isRight) Text("\u2713", color = color, fontWeight = FontWeight.Bold)
+                    else if (isPick) Text("\u2717", color = color, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }

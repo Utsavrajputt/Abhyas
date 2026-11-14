@@ -59,8 +59,10 @@ object QuestionQuery {
 
         when (f.kind) {
             KindFilter.ALL -> Unit
-            KindFilter.THEORY -> clauses += "type <> 'NUMERICAL'"
-            KindFilter.NUMERICAL -> clauses += "type = 'NUMERICAL'"
+            // A question counts as numerical when its type is NUMERICAL or it is tagged "numerical"
+            // (calculation questions in multiple-choice banks, e.g. previous-year papers).
+            KindFilter.THEORY -> clauses += "(type <> 'NUMERICAL' AND (',' || tags || ',') NOT LIKE '%,numerical,%')"
+            KindFilter.NUMERICAL -> clauses += "(type = 'NUMERICAL' OR (',' || tags || ',') LIKE '%,numerical,%')"
         }
         if (f.pyqOnly) clauses += "year IS NOT NULL"
         if (f.bookmarkedOnly) clauses += "id IN (SELECT questionId FROM bookmarks)"

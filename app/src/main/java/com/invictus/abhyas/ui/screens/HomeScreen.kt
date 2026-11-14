@@ -42,6 +42,11 @@ import com.invictus.abhyas.domain.model.Exam
 import com.invictus.abhyas.domain.model.Question
 import com.invictus.abhyas.domain.query.QuestionFilter
 import com.invictus.abhyas.ui.icons.AppIcons
+import com.invictus.abhyas.ui.progress.ProgBad
+import com.invictus.abhyas.ui.progress.ProgInfo
+import com.invictus.abhyas.ui.progress.ProgViolet
+import com.invictus.abhyas.ui.progress.SummaryTile
+import com.invictus.abhyas.ui.progress.accuracyColor
 import com.invictus.abhyas.data.local.AttemptEntity
 import com.invictus.abhyas.domain.attempt.DailyPractice
 import com.invictus.abhyas.domain.query.KindFilter
@@ -120,34 +125,40 @@ fun HomeScreen(
         inProgress?.takeIf { DailyPractice.dayOf(it.title) != today }?.let { a -> ContinueCard(app, a.id, a.title, a.currentIndex, onOpenSession) }
 
         if ((total ?: 0) > 0) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                QuickTile(
-                    title = "Quick 20",
-                    subtitle = "Random mix",
-                    container = MaterialTheme.colorScheme.secondaryContainer,
-                    content = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    scope.launch {
-                        when (val r = app.attemptRepository.startPractice(PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = exam), 20))) {
-                            is StartResult.Started -> onOpenSession(r.attemptId)
-                            is StartResult.Failed -> message = r.message
-                        }
+            // Overall numbers from finished tests.
+            val right = history.sumOf { it.correctCount }
+            val wrong = history.sumOf { it.wrongCount }
+            val acc = if (right + wrong == 0) 0.0 else right.toDouble() / (right + wrong)
+            val weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                SummaryTile(Modifier.weight(1f), if (right + wrong == 0) "-" else com.invictus.abhyas.ui.progress.pct(acc), "Accuracy", accuracyColor(acc))
+                SummaryTile(Modifier.weight(1f), "${history.size}", "Tests", ProgViolet)
+                SummaryTile(Modifier.weight(1f), "${history.count { it.startedAt >= weekAgo }}", "This week", ProgInfo)
+            }
+
+            SectionTitle("Practice")
+            val start: (QuestionFilter, Int, String) -> Unit = { filter, count, title ->
+                scope.launch {
+                    when (val r = app.attemptRepository.startPractice(PracticeConfig(PracticeMode.QUICK, filter, count))) {
+                        is StartResult.Started -> onOpenSession(r.attemptId)
+                        is StartResult.Failed -> message = r.message
                     }
                 }
-                QuickTile(
-                    title = "Theory 10",
-                    subtitle = "Short round",
-                    container = MaterialTheme.colorScheme.tertiaryContainer,
-                    content = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    scope.launch {
-                        when (val r = app.attemptRepository.startPractice(PracticeConfig(PracticeMode.QUICK, QuestionFilter(exam = exam, kind = KindFilter.THEORY), 10))) {
-                            is StartResult.Started -> onOpenSession(r.attemptId)
-                            is StartResult.Failed -> message = r.message
-                        }
-                    }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                QuickTile("Quick 20", "Random mix", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, Modifier.weight(1f)) {
+                    start(QuestionFilter(exam = exam), 20, "Quick 20")
+                }
+                QuickTile("Theory 10", "No calculations", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, Modifier.weight(1f)) {
+                    start(QuestionFilter(exam = exam, kind = KindFilter.THEORY), 10, "Theory 10")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                QuickTile("Numericals 10", "Calculation practice", ProgInfo.copy(alpha = 0.22f), ProgInfo, Modifier.weight(1f)) {
+                    start(QuestionFilter(exam = exam, kind = KindFilter.NUMERICAL), 10, "Numericals 10")
+                }
+                QuickTile("Revise mistakes", "Questions you got wrong", ProgBad.copy(alpha = 0.2f), ProgBad, Modifier.weight(1f)) {
+                    start(QuestionFilter(exam = exam, incorrectOnly = true), 10, "Revise mistakes")
                 }
             }
         }
@@ -226,7 +237,7 @@ private fun DailyCard(
             when {
                 done != null -> {
                     Text(
-                        "Done today: ${done.correctCount}/${done.correctCount + done.wrongCount + done.unattemptedCount} correct. Come back tomorrow to keep the streak.",
+                        "Done today: ${done.correctCount} right, ${done.wrongCount} wrong, ${done.unattemptedCount} skipped. Come back tomorrow to keep the streak.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = cs.onPrimaryContainer,
                     )
