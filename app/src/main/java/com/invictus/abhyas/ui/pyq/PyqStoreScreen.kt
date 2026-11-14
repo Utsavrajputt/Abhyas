@@ -2,6 +2,8 @@
 
 package com.invictus.abhyas.ui.pyq
 
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -115,11 +117,11 @@ fun PyqStoreScreen(app: AbhyasApp, onOpenSettings: () -> Unit, onOpenStudio: () 
     ) {
         androidx.compose.material3.SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf("Online", "Offline").forEachIndexed { i, label ->
-                androidx.compose.material3.SegmentedButton(
+                SegmentedButton(
                     selected = tab == i,
                     onClick = { tab = i },
-                    shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(index = i, count = 2),
-                    icon = { androidx.compose.material3.SegmentedButtonDefaults.Icon(active = tab == i) },
+                    shape = SegmentedButtonDefaults.itemShape(index = i, count = 2),
+                    icon = { SegmentedButtonDefaults.Icon(active = tab == i) },
                     label = { Text(label) },
                 )
             }

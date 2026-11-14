@@ -1,0 +1,15 @@
+{
+  "id": "neet-pyq-2017",
+  "name": "NEET 2017 (Code R)",
+  "description": "Full paper, 180 questions, answers and solutions (Aakash)",
+  "version": 1,
+  "type": "paper",
+  "exam": "NEET",
+  "subject": "Physics, Chemistry, Biology",
+  "kind": "pyq",
+  "year": 2017,
+  "questions": 180,
+  "url": "https://raw.githubusercontent.com/Utsavrajputt/Abhyas/main/packs/neet-pyq-2017.zip",
+  "sha256": "93d90f627fba8c4bd7e44e8431eb15fad99445a8d51e234917ea17a99900b995",
+  "sizeBytes": 186843
+}
