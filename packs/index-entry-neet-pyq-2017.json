@@ -5,11 +5,11 @@
   "version": 1,
   "type": "paper",
   "exam": "NEET",
-  "subject": "Physics, Chemistry, Biology",
+  "subject": "Mixed",
   "kind": "pyq",
   "year": 2017,
   "questions": 180,
   "url": "https://raw.githubusercontent.com/Utsavrajputt/Abhyas/main/packs/neet-pyq-2017.zip",
-  "sha256": "93d90f627fba8c4bd7e44e8431eb15fad99445a8d51e234917ea17a99900b995",
-  "sizeBytes": 186843
+  "sha256": "c64d6bcb1cf240fecbb0b4102c03c92b4e884ebdb7896ac4f1dcc299d7408847",
+  "sizeBytes": 186823
 }
