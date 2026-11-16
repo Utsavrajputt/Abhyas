@@ -55,6 +55,7 @@ object QuestionValidator {
             is SingleChoicePayload -> {
                 e += options(p.options, min = 2, label = "options")
                 if (p.correctId != null && p.options.none { it.id == p.correctId }) e += "correctId not in options"
+                if (p.alsoCorrectIds.any { id -> p.options.none { it.id == id } }) e += "alsoCorrectIds not all in options"
             }
             is MultiChoicePayload -> {
                 e += options(p.options, min = 2, label = "options")

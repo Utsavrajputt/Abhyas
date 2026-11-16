@@ -335,7 +335,7 @@ private fun AnswerLine(label: String, value: String, color: Color) {
 @Composable
 private fun OptionReview(q: com.invictus.abhyas.domain.model.Question, response: com.invictus.abhyas.domain.model.Response?) {
     val (options, correct) = when (val p = q.payload) {
-        is com.invictus.abhyas.domain.model.SingleChoicePayload -> p.options to setOfNotNull(p.correctId)
+        is com.invictus.abhyas.domain.model.SingleChoicePayload -> p.options to (setOfNotNull(p.correctId) + p.alsoCorrectIds)
         is com.invictus.abhyas.domain.model.MultiChoicePayload -> p.options to p.correctIds.toSet()
         is com.invictus.abhyas.domain.model.MatchPayload -> p.options to setOfNotNull(p.correctId)
         else -> return

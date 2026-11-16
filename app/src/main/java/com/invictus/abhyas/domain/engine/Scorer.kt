@@ -43,7 +43,7 @@ object Scorer {
     }
 
     fun isCorrect(p: QuestionPayload, r: Response): Boolean = when (p) {
-        is SingleChoicePayload -> r is Response.Choice && r.ids.size == 1 && r.ids.first() == p.correctId
+        is SingleChoicePayload -> r is Response.Choice && r.ids.size == 1 && (r.ids.first() == p.correctId || r.ids.first() in p.alsoCorrectIds)
         is MatchPayload -> r is Response.Choice && r.ids.size == 1 && r.ids.first() == p.correctId
         is MultiChoicePayload -> r is Response.Choice && r.ids == p.correctIds.toSet()
         is AssertionReasonPayload -> r is Response.Choice && r.ids == setOf(p.correctOption.toString())

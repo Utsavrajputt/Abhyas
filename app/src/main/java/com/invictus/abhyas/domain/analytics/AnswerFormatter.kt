@@ -18,7 +18,7 @@ object AnswerFormatter {
 
     /** Null when the question has no answer key. */
     fun correct(q: Question): String? = when (val p = q.payload) {
-        is SingleChoicePayload -> p.correctId?.let { choice(p.options, setOf(it)) }
+        is SingleChoicePayload -> p.correctId?.let { choice(p.options, setOf(it) + p.alsoCorrectIds) }
         is MultiChoicePayload -> if (p.correctIds.isEmpty()) null else choice(p.options, p.correctIds.toSet())
         is MatchPayload -> p.correctId?.let { choice(p.options, setOf(it)) }
         is AssertionReasonPayload -> p.correctOption?.let { "($it) " + AssertionReasonOptions.ALL.getOrNull(it - 1)?.text.orEmpty() }

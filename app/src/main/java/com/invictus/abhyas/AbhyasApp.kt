@@ -1,6 +1,7 @@
 package com.invictus.abhyas
 
 import android.app.Application
+import kotlinx.coroutines.launch
 import com.invictus.abhyas.data.local.AbhyasDatabase
 import com.invictus.abhyas.data.pdf.PdfStudioRepository
 import com.invictus.abhyas.data.prefs.SettingsStore
@@ -11,6 +12,14 @@ import com.invictus.abhyas.data.repo.QuestionRepository
 import com.invictus.abhyas.data.repo.TemplateRepository
 
 class AbhyasApp : Application() {
+    private val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+
+    override fun onCreate() {
+        super.onCreate()
+        // Previous-year papers that come with the app are installed in the background on first launch.
+        appScope.launch { com.invictus.abhyas.data.repo.BundledBanks(this@AbhyasApp, bankImporter).installAll() }
+    }
+
     val database: AbhyasDatabase by lazy { AbhyasDatabase.build(this) }
     val bankImporter: BankImporter by lazy { BankImporter(database, imagesRoot = java.io.File(filesDir, "banks")) }
     val questionRepository: QuestionRepository by lazy { QuestionRepository(database) }

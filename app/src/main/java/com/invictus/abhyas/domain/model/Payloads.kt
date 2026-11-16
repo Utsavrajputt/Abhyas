@@ -16,6 +16,8 @@ sealed interface QuestionPayload
 data class SingleChoicePayload(
     val options: List<Option>,
     val correctId: String? = null,
+    /** Other options that are also accepted as correct (e.g. "both (2) and (3) are correct" in an official key). */
+    val alsoCorrectIds: List<String> = emptyList(),
 ) : QuestionPayload
 
 @Serializable
